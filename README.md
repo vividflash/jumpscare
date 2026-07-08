@@ -1,4 +1,4 @@
-# VividFlash Jumpscare
+# Jumpscare
 
 A RuneLite plugin that, very rarely, throws a full-screen jumpscare (a creepy
 image plus a scream sound) at you while you play Old School RuneScape. You have

@@ -47,7 +47,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 
 @Slf4j
 @PluginDescriptor(
-    name = "VividFlash Jumpscare"
+    name = "Jumpscare"
 )
 public class JumpscarePlugin extends Plugin
 {
