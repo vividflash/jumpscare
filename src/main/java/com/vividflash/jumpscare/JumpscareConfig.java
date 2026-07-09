@@ -85,7 +85,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "theme",
         name = "Theme",
-        description = "Scary shows the creepy face and scream; Happy shows a friendly picture and a cheerful jingle. ::scaretest happy / ::scaretest scary force one regardless of this setting.",
+        description = "Scary shows the creepy face and scream; Happy shows a friendly picture and a cheerful jingle. ::stest happy / ::stest scary (or h / s) force one regardless of this setting.",
         section = generalSection,
         position = 3
     )

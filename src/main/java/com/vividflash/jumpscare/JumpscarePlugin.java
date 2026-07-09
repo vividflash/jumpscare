@@ -155,7 +155,7 @@ public class JumpscarePlugin extends Plugin
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        if (!"scaretest".equals(event.getCommand()))
+        if (!"stest".equals(event.getCommand()))
         {
             return;
         }
@@ -164,11 +164,11 @@ public class JumpscarePlugin extends Plugin
         String[] args = event.getArguments();
         if (args != null && args.length > 0)
         {
-            if ("happy".equalsIgnoreCase(args[0]))
+            if ("happy".equalsIgnoreCase(args[0]) || "h".equalsIgnoreCase(args[0]))
             {
                 theme = JumpscareTheme.HAPPY;
             }
-            else if ("scary".equalsIgnoreCase(args[0]))
+            else if ("scary".equalsIgnoreCase(args[0]) || "s".equalsIgnoreCase(args[0]))
             {
                 theme = JumpscareTheme.SCARY;
             }
