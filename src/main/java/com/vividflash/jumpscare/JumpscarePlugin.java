@@ -27,7 +27,6 @@ package com.vividflash.jumpscare;
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,10 +34,6 @@ import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Random;
 import javax.imageio.ImageIO;
-import javax.sound.sampled.AudioFileFormat;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -210,8 +205,19 @@ public class JumpscarePlugin extends Plugin
             byte[] wav = loadScreamBytes(theme);
             // AudioPlayer's gain parameter relies on the mixer exposing a MASTER_GAIN
             // control and is silently ignored where it doesn't; scaling the samples
-            // ourselves works on every system, so always pass gain 0.
-            audioPlayer.play(new ByteArrayInputStream(scaleWavVolume(wav, amplitude)), 0f);
+            // ourselves works on every system, so prefer that and pass gain 0.
+            byte[] scaled = scaleWavPcm16(wav, amplitude);
+            if (scaled != null)
+            {
+                audioPlayer.play(new ByteArrayInputStream(scaled), 0f);
+            }
+            else
+            {
+                // Unrecognized WAV flavour (custom file): let AudioPlayer decode it
+                // and fall back to best-effort mixer gain.
+                float gainDb = Math.max(-80f, (float) (20.0 * Math.log10(volume / 100.0)));
+                audioPlayer.play(new ByteArrayInputStream(wav), gainDb);
+            }
         }
         catch (Exception e)
         {
@@ -249,41 +255,72 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * Decode a WAV to 16-bit signed PCM, multiply every sample by {@code amplitude},
-     * and re-encode as WAV bytes.
+     * Multiply every sample of a 16-bit PCM RIFF/WAVE by {@code amplitude}, returning
+     * a scaled copy with the original headers intact. Returns null when the bytes are
+     * not a WAV flavour this parser understands (caller falls back to mixer gain).
+     * Parsed by hand because the plugin hub disallows javax.sound.* in plugin code.
      */
-    private static byte[] scaleWavVolume(byte[] wavBytes, float amplitude) throws Exception
+    private static byte[] scaleWavPcm16(byte[] wav, float amplitude)
     {
         if (amplitude >= 0.999f)
         {
-            return wavBytes;
+            return wav;
+        }
+        if (wav.length < 44
+            || wav[0] != 'R' || wav[1] != 'I' || wav[2] != 'F' || wav[3] != 'F'
+            || wav[8] != 'W' || wav[9] != 'A' || wav[10] != 'V' || wav[11] != 'E')
+        {
+            return null;
         }
 
-        try (AudioInputStream in = AudioSystem.getAudioInputStream(new ByteArrayInputStream(wavBytes)))
+        byte[] out = wav.clone();
+        boolean pcm16 = false;
+        int pos = 12;
+        while (pos + 8 <= out.length)
         {
-            AudioFormat src = in.getFormat();
-            AudioFormat pcm16 = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,
-                src.getSampleRate(), 16, src.getChannels(), src.getChannels() * 2,
-                src.getSampleRate(), false);
-            try (AudioInputStream converted = AudioSystem.getAudioInputStream(pcm16, in))
+            int size = (out[pos + 4] & 0xFF) | (out[pos + 5] & 0xFF) << 8
+                | (out[pos + 6] & 0xFF) << 16 | (out[pos + 7] & 0xFF) << 24;
+            if (size < 0 || pos + 8 + size > out.length)
             {
-                byte[] data = converted.readAllBytes();
-                for (int i = 0; i + 1 < data.length; i += 2)
+                return null;
+            }
+
+            if (out[pos] == 'f' && out[pos + 1] == 'm' && out[pos + 2] == 't' && out[pos + 3] == ' ')
+            {
+                if (size < 16)
                 {
-                    int sample = (short) ((data[i] & 0xFF) | (data[i + 1] << 8));
+                    return null;
+                }
+                int audioFormat = (out[pos + 8] & 0xFF) | (out[pos + 9] & 0xFF) << 8;
+                int bitsPerSample = (out[pos + 22] & 0xFF) | (out[pos + 23] & 0xFF) << 8;
+                if (audioFormat != 1 || bitsPerSample != 16)
+                {
+                    return null;
+                }
+                pcm16 = true;
+            }
+            else if (out[pos] == 'd' && out[pos + 1] == 'a' && out[pos + 2] == 't' && out[pos + 3] == 'a')
+            {
+                if (!pcm16)
+                {
+                    return null;
+                }
+                int end = pos + 8 + size;
+                for (int i = pos + 8; i + 1 < end; i += 2)
+                {
+                    int sample = (short) ((out[i] & 0xFF) | out[i + 1] << 8);
                     sample = Math.max(Short.MIN_VALUE,
                         Math.min(Short.MAX_VALUE, Math.round(sample * amplitude)));
-                    data[i] = (byte) sample;
-                    data[i + 1] = (byte) (sample >> 8);
+                    out[i] = (byte) sample;
+                    out[i + 1] = (byte) (sample >> 8);
                 }
-
-                AudioInputStream scaled = new AudioInputStream(
-                    new ByteArrayInputStream(data), pcm16, data.length / pcm16.getFrameSize());
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                AudioSystem.write(scaled, AudioFileFormat.Type.WAVE, out);
-                return out.toByteArray();
+                return out;
             }
+
+            // Chunks are word-aligned; odd sizes are padded with one byte.
+            pos += 8 + size + (size & 1);
         }
+        return null;
     }
 
     /**
