@@ -91,8 +91,7 @@ public interface JumpscareConfig extends Config
     )
     default JumpscareTheme theme()
     {
-        // TODO(release): flip back to SCARY before any public/live release.
-        return JumpscareTheme.HAPPY;
+        return JumpscareTheme.SCARY;
     }
 
     // ------------------------------------------------------------------
