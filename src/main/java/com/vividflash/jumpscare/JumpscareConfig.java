@@ -82,6 +82,18 @@ public interface JumpscareConfig extends Config
         return JumpscareMode.IMAGE;
     }
 
+    @ConfigItem(
+        keyName = "theme",
+        name = "Theme",
+        description = "Scary shows the creepy face and scream; Happy shows a friendly picture and a cheerful jingle. ::scaretest happy / ::scaretest scary force one regardless of this setting.",
+        section = generalSection,
+        position = 3
+    )
+    default JumpscareTheme theme()
+    {
+        return JumpscareTheme.SCARY;
+    }
+
     // ------------------------------------------------------------------
     // Appearance
     // ------------------------------------------------------------------

@@ -40,7 +40,9 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 @Singleton
 public class JumpscareOverlay extends Overlay
 {
-    private static final Color[] FLASH_COLORS = {Color.RED, Color.WHITE, Color.BLACK};
+    private static final Color[] FLASH_COLORS_SCARY = {Color.RED, Color.WHITE, Color.BLACK};
+    private static final Color[] FLASH_COLORS_HAPPY =
+        {new Color(0xFFE55A), new Color(0xFF9EC4), new Color(0x8FD2FF)};
     private static final long FLASH_INTERVAL_MS = 100L;
 
     private final Client client;
@@ -106,10 +108,12 @@ public class JumpscareOverlay extends Overlay
 
     private void renderFlash(Graphics2D graphics, int width, int height)
     {
+        Color[] colors = plugin.getActiveTheme() == JumpscareTheme.HAPPY
+            ? FLASH_COLORS_HAPPY : FLASH_COLORS_SCARY;
         Instant start = plugin.getScareStartTime();
         long elapsed = start == null ? 0L : Duration.between(start, Instant.now()).toMillis();
-        int index = (int) ((elapsed / FLASH_INTERVAL_MS) % FLASH_COLORS.length);
-        graphics.setColor(FLASH_COLORS[index]);
+        int index = (int) ((elapsed / FLASH_INTERVAL_MS) % colors.length);
+        graphics.setColor(colors[index]);
         graphics.fillRect(0, 0, width, height);
     }
 }

@@ -40,6 +40,14 @@ Type the chat command:
 character jump, added by a Halloween event, so this plugin uses a different
 name to avoid the collision.)
 
+`::scaretest` uses your configured **Theme**. Two bundled themes ship with the
+plugin, and you can force either one for a test regardless of the setting:
+
+- `::scaretest scary` — creepy face + scream (respects your custom image/sound
+  paths if set)
+- `::scaretest happy` — smiling sun + cheerful jingle, for testing without the
+  heart attack
+
 This triggers a jumpscare immediately, regardless of the odds, so you can see
 what it looks like and tune your settings. It works even outside of combat and
 is the intended way to preview your custom image/sound.
