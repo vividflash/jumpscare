@@ -141,7 +141,7 @@ public class JumpscarePlugin extends Plugin
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        if ("jumpscare".equals(event.getCommand()))
+        if ("scaretest".equals(event.getCommand()))
         {
             triggerJumpscare();
         }

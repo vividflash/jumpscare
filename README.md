@@ -33,8 +33,12 @@ make it more frequent (e.g. 1000 for testing), raise it to make it rarer.
 Type the chat command:
 
 ```
-::jumpscare
+::scaretest
 ```
+
+(Not `::jumpscare` — that is a real built-in game command that makes your
+character jump, added by a Halloween event, so this plugin uses a different
+name to avoid the collision.)
 
 This triggers a jumpscare immediately, regardless of the odds, so you can see
 what it looks like and tune your settings. It works even outside of combat and
