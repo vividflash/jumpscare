@@ -26,12 +26,19 @@ package com.vividflash.jumpscare;
 
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Random;
 import javax.imageio.ImageIO;
+import javax.sound.sampled.AudioFileFormat;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -172,32 +179,82 @@ public class JumpscarePlugin extends Plugin
             return;
         }
 
-        float gainDb = (float) (20.0 * Math.log10(volume / 100.0));
-        // Clamp to a sane floor to avoid extreme negative values.
-        if (gainDb < -80.0f)
-        {
-            gainDb = -80.0f;
-        }
+        // Squared for a perceptual-feeling curve: 50 ≈ quarter amplitude, 20 clearly quiet.
+        float amplitude = (volume / 100f) * (volume / 100f);
 
-        String customSound = config.customSoundPath();
         try
         {
-            if (customSound != null && !customSound.trim().isEmpty())
-            {
-                File soundFile = new File(customSound.trim());
-                if (soundFile.isFile())
-                {
-                    audioPlayer.play(soundFile, gainDb);
-                    return;
-                }
-                log.warn("Custom sound path does not point to a file, falling back to bundled scream: {}", customSound);
-            }
-            audioPlayer.play(getClass(), "scream.wav", gainDb);
+            byte[] wav = loadScreamBytes();
+            // AudioPlayer's gain parameter relies on the mixer exposing a MASTER_GAIN
+            // control and is silently ignored where it doesn't; scaling the samples
+            // ourselves works on every system, so always pass gain 0.
+            audioPlayer.play(new ByteArrayInputStream(scaleWavVolume(wav, amplitude)), 0f);
         }
         catch (Exception e)
         {
             // Includes IOException, UnsupportedAudioFileException, LineUnavailableException.
             log.warn("Failed to play jumpscare sound", e);
+        }
+    }
+
+    private byte[] loadScreamBytes() throws IOException
+    {
+        String customSound = config.customSoundPath();
+        if (customSound != null && !customSound.trim().isEmpty())
+        {
+            File soundFile = new File(customSound.trim());
+            if (soundFile.isFile())
+            {
+                return Files.readAllBytes(soundFile.toPath());
+            }
+            log.warn("Custom sound path does not point to a file, falling back to bundled scream: {}", customSound);
+        }
+
+        try (InputStream in = getClass().getResourceAsStream("scream.wav"))
+        {
+            if (in == null)
+            {
+                throw new IOException("Bundled scream.wav resource not found on classpath");
+            }
+            return in.readAllBytes();
+        }
+    }
+
+    /**
+     * Decode a WAV to 16-bit signed PCM, multiply every sample by {@code amplitude},
+     * and re-encode as WAV bytes.
+     */
+    private static byte[] scaleWavVolume(byte[] wavBytes, float amplitude) throws Exception
+    {
+        if (amplitude >= 0.999f)
+        {
+            return wavBytes;
+        }
+
+        try (AudioInputStream in = AudioSystem.getAudioInputStream(new ByteArrayInputStream(wavBytes)))
+        {
+            AudioFormat src = in.getFormat();
+            AudioFormat pcm16 = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,
+                src.getSampleRate(), 16, src.getChannels(), src.getChannels() * 2,
+                src.getSampleRate(), false);
+            try (AudioInputStream converted = AudioSystem.getAudioInputStream(pcm16, in))
+            {
+                byte[] data = converted.readAllBytes();
+                for (int i = 0; i + 1 < data.length; i += 2)
+                {
+                    int sample = (short) ((data[i] & 0xFF) | (data[i + 1] << 8));
+                    sample = Math.max(Short.MIN_VALUE,
+                        Math.min(Short.MAX_VALUE, Math.round(sample * amplitude)));
+                    data[i] = (byte) sample;
+                    data[i + 1] = (byte) (sample >> 8);
+                }
+
+                AudioInputStream scaled = new AudioInputStream(
+                    new ByteArrayInputStream(data), pcm16, data.length / pcm16.getFrameSize());
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                AudioSystem.write(scaled, AudioFileFormat.Type.WAVE, out);
+                return out.toByteArray();
+            }
         }
     }
 
