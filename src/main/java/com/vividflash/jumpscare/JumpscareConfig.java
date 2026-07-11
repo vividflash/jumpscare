@@ -107,12 +107,12 @@ public interface JumpscareConfig extends Config
 
     @ConfigItem(
         keyName = "customImagePath",
-        name = "Custom image path",
-        description = "Absolute path to a custom PNG/JPG image to show instead of the bundled one. Leave blank to use the bundled scare image.",
+        name = "Custom image file",
+        description = "File name of a custom PNG/JPG inside your .runelite/jumpscare folder (created when the plugin starts) to show instead of the bundled one. Leave blank to use the bundled scare image.",
         section = appearanceSection,
         position = 0
     )
-    default String customImagePath()
+    default String customImageFile()
     {
         return "";
     }
@@ -155,12 +155,12 @@ public interface JumpscareConfig extends Config
 
     @ConfigItem(
         keyName = "customSoundPath",
-        name = "Custom sound path",
-        description = "Absolute path to a custom WAV file (WAV only) to play instead of the bundled scream. Leave blank to use the bundled sound.",
+        name = "Custom sound file",
+        description = "File name of a custom WAV (WAV only) inside your .runelite/jumpscare folder (created when the plugin starts) to play instead of the bundled scream. Leave blank to use the bundled sound.",
         section = soundSection,
         position = 2
     )
-    default String customSoundPath()
+    default String customSoundFile()
     {
         return "";
     }

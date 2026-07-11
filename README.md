@@ -44,7 +44,7 @@ name to avoid the collision.)
 plugin, and you can force either one for a test regardless of the setting:
 
 - `::stest scary` (or `::stest s`) — creepy face + scream (respects your
-  custom image/sound paths if set)
+  custom image/sound files if set)
 - `::stest happy` (or `::stest h`) — smiling sun + cheerful jingle, for
   testing without the heart attack
 
@@ -61,19 +61,20 @@ is the intended way to preview your custom image/sound.
 | Mode | Image | `Image` = full-screen picture. `Flash` = flashing colours (see warning). |
 | Play sound | on | Play the scream when the scare fires. |
 | Volume | 80 | 0-100. See volume behaviour below. |
-| Custom image path | (blank) | Absolute path to a PNG/JPG. Blank = bundled image. |
-| Custom sound path | (blank) | Absolute path to a **WAV** file. Blank = bundled scream. |
+| Custom image file | (blank) | File name of a PNG/JPG inside your `.runelite/jumpscare` folder. Blank = bundled image. |
+| Custom sound file | (blank) | File name of a **WAV** inside your `.runelite/jumpscare` folder. Blank = bundled scream. |
 
 ### Custom image
 
-Set **Custom image path** to the absolute path of a PNG or JPG file, e.g.
-`C:\Users\me\Pictures\myscare.png`. It is scaled to fill the whole game canvas.
-If the file can't be loaded, the plugin falls back to the bundled image and
-logs a warning.
+Drop a PNG or JPG into your `.runelite/jumpscare` folder (created when the
+plugin starts) and set **Custom image file** to its file name, e.g.
+`myscare.png`. It is scaled to fill the whole game canvas. If the file can't
+be loaded, the plugin falls back to the bundled image and logs a warning.
 
 ### Custom sound (WAV only)
 
-Set **Custom sound path** to the absolute path of a **WAV** file. The client
+Drop a **WAV** file into your `.runelite/jumpscare` folder and set
+**Custom sound file** to its file name. The client
 plays audio through `javax.sound.sampled` (via RuneLite's `AudioPlayer`), which
 only supports **WAV / PCM** out of the box — there is **no MP3 or MP4 codec
 support**. If you want a specific jumpscare clip (for example one from a horror

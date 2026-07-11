@@ -40,6 +40,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameTick;
+import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -53,6 +54,13 @@ import net.runelite.client.ui.overlay.OverlayManager;
 )
 public class JumpscarePlugin extends Plugin
 {
+    /**
+     * All file I/O is restricted to this plugin-specific subfolder under
+     * .runelite (Plugin Hub requirement). Created on startup so users can
+     * drop their custom image/WAV into it.
+     */
+    private static final File PLUGIN_DIR = new File(RuneLite.RUNELITE_DIR, "jumpscare");
+
     private final Random random = new Random();
 
     @Inject
@@ -106,6 +114,10 @@ public class JumpscarePlugin extends Plugin
     @Override
     protected void startUp()
     {
+        if (!PLUGIN_DIR.exists() && !PLUGIN_DIR.mkdirs())
+        {
+            log.warn("Could not create plugin folder {}", PLUGIN_DIR);
+        }
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
         overlayManager.add(overlay);
@@ -231,15 +243,15 @@ public class JumpscarePlugin extends Plugin
         // The custom sound only replaces the scary sound; happy always uses the bundled jingle.
         if (theme == JumpscareTheme.SCARY)
         {
-            String customSound = config.customSoundPath();
+            String customSound = config.customSoundFile();
             if (customSound != null && !customSound.trim().isEmpty())
             {
-                File soundFile = new File(customSound.trim());
-                if (soundFile.isFile())
+                File soundFile = resolvePluginFile(customSound.trim());
+                if (soundFile != null && soundFile.isFile())
                 {
                     return Files.readAllBytes(soundFile.toPath());
                 }
-                log.warn("Custom sound path does not point to a file, falling back to bundled scream: {}", customSound);
+                log.warn("Custom sound file not found in {}, falling back to bundled scream: {}", PLUGIN_DIR, customSound);
             }
         }
 
@@ -335,37 +347,56 @@ public class JumpscarePlugin extends Plugin
             return bundledHappy;
         }
 
-        String customPath = config.customImagePath();
-        if (customPath != null && !customPath.trim().isEmpty())
+        String customName = config.customImageFile();
+        if (customName != null && !customName.trim().isEmpty())
         {
-            String path = customPath.trim();
-            if (path.equals(cachedCustomPath) && cachedCustomImage != null)
+            String name = customName.trim();
+            if (name.equals(cachedCustomPath) && cachedCustomImage != null)
             {
                 return cachedCustomImage;
             }
 
             try
             {
-                File imageFile = new File(path);
-                if (imageFile.isFile())
+                File imageFile = resolvePluginFile(name);
+                if (imageFile != null && imageFile.isFile())
                 {
                     BufferedImage loaded = ImageIO.read(imageFile);
                     if (loaded != null)
                     {
-                        cachedCustomPath = path;
+                        cachedCustomPath = name;
                         cachedCustomImage = loaded;
                         return loaded;
                     }
                 }
-                log.warn("Could not load custom image, falling back to bundled: {}", path);
+                log.warn("Could not load custom image from {}, falling back to bundled: {}", PLUGIN_DIR, name);
             }
             catch (IOException e)
             {
-                log.warn("Failed to read custom image, falling back to bundled: {}", path, e);
+                log.warn("Failed to read custom image, falling back to bundled: {}", name, e);
             }
         }
 
         return bundledScary;
+    }
+
+    /**
+     * Resolve a configured file name inside the plugin's .runelite subfolder.
+     * Only files within that folder are ever read; a name that escapes it
+     * (e.g. via "..") resolves to null.
+     */
+    private static File resolvePluginFile(String name)
+    {
+        try
+        {
+            File file = new File(PLUGIN_DIR, name);
+            String base = PLUGIN_DIR.getCanonicalPath() + File.separator;
+            return file.getCanonicalPath().startsWith(base) ? file : null;
+        }
+        catch (IOException e)
+        {
+            return null;
+        }
     }
 
     private BufferedImage loadBundledImage(String resource)
