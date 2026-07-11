@@ -64,7 +64,7 @@ Supported formats are what Java decodes out of the box: **PNG, JPG, GIF,
 BMP** (no WebP — that would need a third-party codec). **Animated GIFs
 play**, looping for the scare duration. To keep memory bounded, animation
 frames are downscaled to at most 512 px on their longest side and long
-animations are truncated to the first 20 frames.
+animations are truncated to the first 10 frames.
 
 ### Custom sound (WAV only)
 
