@@ -34,6 +34,8 @@ import java.time.Instant;
 import java.util.Random;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -43,6 +45,7 @@ import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -78,6 +81,9 @@ public class JumpscarePlugin extends Plugin
 
     @Inject
     private AudioPlayer audioPlayer;
+
+    @Inject
+    private ConfigManager configManager;
 
     /**
      * When the current scare should stop being drawn. Null when no scare is active.
@@ -145,6 +151,37 @@ public class JumpscarePlugin extends Plugin
     JumpscareConfig provideConfig(ConfigManager configManager)
     {
         return configManager.getConfig(JumpscareConfig.class);
+    }
+
+    /**
+     * Confirm enabling flash mode with an epilepsy warning, reverting the
+     * toggle if declined. Done here rather than via the ConfigItem warning
+     * attribute because that fires on every change — disabling flash again
+     * must not prompt.
+     */
+    @Subscribe
+    public void onConfigChanged(ConfigChanged event)
+    {
+        if (!"jumpscare".equals(event.getGroup())
+            || !"flashMode".equals(event.getKey())
+            || !Boolean.parseBoolean(event.getNewValue()))
+        {
+            return;
+        }
+
+        SwingUtilities.invokeLater(() ->
+        {
+            int choice = JOptionPane.showConfirmDialog(null,
+                "Flash mode rapidly flashes bright colours, which can trigger seizures\n"
+                    + "in people with photosensitive epilepsy.\n\nEnable flash mode anyway?",
+                "Epilepsy warning",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+            if (choice != JOptionPane.YES_OPTION)
+            {
+                configManager.setConfiguration("jumpscare", "flashMode", false);
+            }
+        });
     }
 
     @Subscribe

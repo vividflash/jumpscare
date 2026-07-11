@@ -99,7 +99,6 @@ public interface JumpscareConfig extends Config
         name = "Enable flash (epilepsy warning)",
         description = "Replaces the scare image with rapidly flashing colours.<br><br>"
             + "Epilepsy warning: rapid flashing can trigger seizures in photosensitive people.",
-        warning = "Flash mode rapidly flashes bright colours, which can trigger seizures in people with photosensitive epilepsy.\n\nAre you sure you want to enable it?",
         section = flashSection,
         position = 0
     )
