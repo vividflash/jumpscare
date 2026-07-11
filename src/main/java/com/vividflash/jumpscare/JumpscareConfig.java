@@ -71,28 +71,41 @@ public interface JumpscareConfig extends Config
     }
 
     @ConfigItem(
-        keyName = "mode",
-        name = "Mode",
-        description = "Image shows a full-screen scare picture. Flash rapidly flashes colours.<br><br>"
-            + "Epilepsy warning: Flash mode's rapid flashing can trigger seizures in photosensitive people.",
-        section = generalSection,
-        position = 2
-    )
-    default JumpscareMode mode()
-    {
-        return JumpscareMode.IMAGE;
-    }
-
-    @ConfigItem(
         keyName = "theme",
         name = "Theme",
         description = "Scary shows the creepy face and scream; Happy shows a friendly picture and a cheerful jingle. ::stest happy / ::stest scary (or h / s) force one regardless of this setting.",
         section = generalSection,
-        position = 3
+        position = 2
     )
     default JumpscareTheme theme()
     {
         return JumpscareTheme.SCARY;
+    }
+
+    // ------------------------------------------------------------------
+    // Flash mode
+    // ------------------------------------------------------------------
+
+    @ConfigSection(
+        name = "Flash mode",
+        description = "Epilepsy warning: flash mode rapidly flashes bright colours, which can trigger seizures in photosensitive people.",
+        position = 1,
+        closedByDefault = true
+    )
+    String flashSection = "flash";
+
+    @ConfigItem(
+        keyName = "flashMode",
+        name = "Enable flash (epilepsy warning)",
+        description = "Replaces the scare image with rapidly flashing colours.<br><br>"
+            + "Epilepsy warning: rapid flashing can trigger seizures in photosensitive people.",
+        warning = "Flash mode rapidly flashes bright colours, which can trigger seizures in people with photosensitive epilepsy.\n\nAre you sure you want to enable it?",
+        section = flashSection,
+        position = 0
+    )
+    default boolean flashMode()
+    {
+        return false;
     }
 
     // ------------------------------------------------------------------
@@ -102,7 +115,7 @@ public interface JumpscareConfig extends Config
     @ConfigSection(
         name = "Appearance",
         description = "Custom image for the jumpscare",
-        position = 1
+        position = 2
     )
     String appearanceSection = "appearance";
 

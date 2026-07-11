@@ -6,8 +6,8 @@ been warned.
 
 > **Photosensitivity / epilepsy warning:** the optional **Flash** mode rapidly
 > flashes red, white and black. Rapid flashing can trigger seizures in
-> photosensitive individuals. If you are sensitive to flashing lights, use
-> **Image** mode (the default) or disable the plugin entirely.
+> photosensitive individuals. If you are sensitive to flashing lights, leave
+> flash disabled (the default) or disable the plugin entirely.
 
 ## What it does
 
@@ -47,7 +47,7 @@ is the intended way to preview your custom image/sound.
 | --- | --- | --- |
 | Chance (1 in N) | 10000 | 1-in-N roll per game tick. See odds above. |
 | Duration (ms) | 1000 | How long the scare stays on screen. |
-| Mode | Image | `Image` = full-screen picture. `Flash` = flashing colours (see warning). |
+| Enable flash | off | In the **Flash mode** section; replaces the image with flashing colours (see warning). |
 | Play sound | on | Play the scream when the scare fires. |
 | Volume | 80 | 0-100. See volume behaviour below. |
 | Custom image file | (blank) | File name of a PNG/JPG inside your `.runelite/jumpscare` folder. Blank = bundled image. |

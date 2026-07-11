@@ -73,7 +73,11 @@ public class JumpscareOverlay extends Overlay
             return null;
         }
 
-        Dimension canvas = client.getCanvas().getSize();
+        // In stretched mode overlays draw on the pre-stretch surface, whose size
+        // is the real client dimensions, not the stretched canvas size.
+        Dimension canvas = client.isStretchedEnabled()
+            ? client.getRealDimensions()
+            : client.getCanvas().getSize();
         int width = canvas.width;
         int height = canvas.height;
         if (width <= 0 || height <= 0)
@@ -81,7 +85,7 @@ public class JumpscareOverlay extends Overlay
             return null;
         }
 
-        if (config.mode() == JumpscareMode.FLASH)
+        if (config.flashMode())
         {
             renderFlash(graphics, width, height);
         }
