@@ -65,6 +65,15 @@ public class JumpscarePlugin extends Plugin
      */
     private static final File PLUGIN_DIR = new File(RuneLite.RUNELITE_DIR, "jumpscare");
 
+    private static final String CONFIG_GROUP = "jumpscare";
+    private static final String FLASH_MODE_KEY = "flashMode";
+
+    /**
+     * Hidden flag (never shown in the config panel) recording that the user
+     * accepted the epilepsy warning once, so startup doesn't re-prompt.
+     */
+    private static final String FLASH_ACK_KEY = "flashWarningAcknowledged";
+
     private final Random random = new Random();
 
     @Inject
@@ -136,6 +145,15 @@ public class JumpscarePlugin extends Plugin
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
         overlayManager.add(overlay);
+
+        // Flash mode may have been switched on while the plugin was disabled
+        // (a stopped plugin gets no ConfigChanged events), so the enable-time
+        // warning can be bypassed. Catch up here unless already acknowledged.
+        if (config.flashMode() && !Boolean.parseBoolean(
+            configManager.getConfiguration(CONFIG_GROUP, FLASH_ACK_KEY)))
+        {
+            confirmFlashMode();
+        }
     }
 
     @Override
@@ -162,13 +180,20 @@ public class JumpscarePlugin extends Plugin
     @Subscribe
     public void onConfigChanged(ConfigChanged event)
     {
-        if (!"jumpscare".equals(event.getGroup())
-            || !"flashMode".equals(event.getKey())
-            || !Boolean.parseBoolean(event.getNewValue()))
+        if (CONFIG_GROUP.equals(event.getGroup())
+            && FLASH_MODE_KEY.equals(event.getKey())
+            && Boolean.parseBoolean(event.getNewValue()))
         {
-            return;
+            confirmFlashMode();
         }
+    }
 
+    /**
+     * Show the epilepsy warning: accepting records the acknowledgement,
+     * declining switches flash mode back off.
+     */
+    private void confirmFlashMode()
+    {
         SwingUtilities.invokeLater(() ->
         {
             int choice = JOptionPane.showConfirmDialog(null,
@@ -177,9 +202,13 @@ public class JumpscarePlugin extends Plugin
                 "Epilepsy warning",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.WARNING_MESSAGE);
-            if (choice != JOptionPane.YES_OPTION)
+            if (choice == JOptionPane.YES_OPTION)
             {
-                configManager.setConfiguration("jumpscare", "flashMode", false);
+                configManager.setConfiguration(CONFIG_GROUP, FLASH_ACK_KEY, true);
+            }
+            else
+            {
+                configManager.setConfiguration(CONFIG_GROUP, FLASH_MODE_KEY, false);
             }
         });
     }
