@@ -49,7 +49,9 @@ import net.runelite.client.ui.overlay.OverlayManager;
 
 @Slf4j
 @PluginDescriptor(
-    name = "Jumpscare"
+    name = "Jumpscare",
+    description = "Random rare jumpscare: full-screen scare image and scream sound. You have been warned.",
+    tags = {"jumpscare", "scare", "prank", "fun"}
 )
 public class JumpscarePlugin extends Plugin
 {
