@@ -27,7 +27,6 @@ package com.vividflash.jumpscare;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
 import java.time.Duration;
 import java.time.Instant;
 import javax.inject.Inject;
@@ -85,21 +84,24 @@ public class JumpscareOverlay extends Overlay
             return null;
         }
 
+        Instant start = plugin.getScareStartTime();
+        long elapsed = start == null ? 0L : Duration.between(start, Instant.now()).toMillis();
+
         if (config.flashMode())
         {
-            renderFlash(graphics, width, height);
+            renderFlash(graphics, width, height, elapsed);
         }
         else
         {
-            renderImage(graphics, width, height);
+            renderImage(graphics, width, height, elapsed);
         }
 
         return new Dimension(width, height);
     }
 
-    private void renderImage(Graphics2D graphics, int width, int height)
+    private void renderImage(Graphics2D graphics, int width, int height, long elapsed)
     {
-        BufferedImage image = plugin.getActiveImage();
+        AnimatedImage image = plugin.getActiveImage();
         if (image == null)
         {
             // Fallback so the scare is still visible even if no image loaded.
@@ -107,15 +109,13 @@ public class JumpscareOverlay extends Overlay
             graphics.fillRect(0, 0, width, height);
             return;
         }
-        graphics.drawImage(image, 0, 0, width, height, null);
+        graphics.drawImage(image.frameAt(elapsed), 0, 0, width, height, null);
     }
 
-    private void renderFlash(Graphics2D graphics, int width, int height)
+    private void renderFlash(Graphics2D graphics, int width, int height, long elapsed)
     {
         Color[] colors = plugin.getActiveTheme() == JumpscareTheme.HAPPY
             ? FLASH_COLORS_HAPPY : FLASH_COLORS_SCARY;
-        Instant start = plugin.getScareStartTime();
-        long elapsed = start == null ? 0L : Duration.between(start, Instant.now()).toMillis();
         int index = (int) ((elapsed / FLASH_INTERVAL_MS) % colors.length);
         graphics.setColor(colors[index]);
         graphics.fillRect(0, 0, width, height);

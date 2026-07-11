@@ -50,15 +50,21 @@ is the intended way to preview your custom image/sound.
 | Enable flash | off | In the **Flash mode** section; replaces the image with flashing colours (see warning). |
 | Play sound | on | Play the scream when the scare fires. |
 | Volume | 80 | 0-100. See volume behaviour below. |
-| Custom image file | (blank) | File name of a PNG/JPG inside your `.runelite/jumpscare` folder. Blank = bundled image. |
+| Custom image file | (blank) | File name of an image inside your `.runelite/jumpscare` folder. Blank = bundled image. |
 | Custom sound file | (blank) | File name of a **WAV** inside your `.runelite/jumpscare` folder. Blank = bundled scream. |
 
 ### Custom image
 
-Drop a PNG or JPG into your `.runelite/jumpscare` folder (created when the
+Drop an image into your `.runelite/jumpscare` folder (created when the
 plugin starts) and set **Custom image file** to its file name, e.g.
 `myscare.png`. It is scaled to fill the whole game canvas. If the file can't
 be loaded, the plugin falls back to the bundled image and logs a warning.
+
+Supported formats are what Java decodes out of the box: **PNG, JPG, GIF,
+BMP** (no WebP — that would need a third-party codec). **Animated GIFs
+play**, looping for the scare duration. To keep memory bounded, animation
+frames are downscaled to at most 640 px on their longest side and very long
+animations are truncated (at most 150 frames / 64 MB decoded).
 
 ### Custom sound (WAV only)
 

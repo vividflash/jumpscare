@@ -122,7 +122,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "customImagePath",
         name = "Custom image file",
-        description = "File name of a custom PNG/JPG inside your .runelite/jumpscare folder (created when the plugin starts) to show instead of the bundled one. Leave blank to use the bundled scare image.",
+        description = "File name of a custom image inside your .runelite/jumpscare folder (created when the plugin starts) to show instead of the bundled one. PNG, JPG, GIF, BMP; animated GIFs play. Leave blank to use the bundled scare image.",
         section = appearanceSection,
         position = 0
     )

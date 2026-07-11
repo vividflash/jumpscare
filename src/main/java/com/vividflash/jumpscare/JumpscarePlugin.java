@@ -25,7 +25,6 @@
 package com.vividflash.jumpscare;
 
 import com.google.inject.Provides;
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -89,9 +88,17 @@ public class JumpscarePlugin extends Plugin
     private volatile Instant scareStartTime;
 
     /**
+     * Animated custom images keep frames this large at most (longest side);
+     * the overlay upscales to the canvas, and uncompressed frames at full
+     * screen resolution would multiply the heap cost for little visible gain
+     * during a sub-second scare.
+     */
+    private static final int MAX_ANIMATED_DIMENSION = 640;
+
+    /**
      * The image the overlay should draw for the current scare (bundled or custom).
      */
-    private volatile BufferedImage activeImage;
+    private volatile AnimatedImage activeImage;
 
     /**
      * The theme of the currently active scare (drives flash colours).
@@ -101,15 +108,15 @@ public class JumpscarePlugin extends Plugin
     /**
      * The bundled default images, loaded once at start-up.
      */
-    private BufferedImage bundledScary;
-    private BufferedImage bundledHappy;
+    private AnimatedImage bundledScary;
+    private AnimatedImage bundledHappy;
 
     /**
      * Cache of the last custom image loaded, keyed by its path, to avoid re-reading
      * the same file from disk on every trigger.
      */
     private String cachedCustomPath;
-    private BufferedImage cachedCustomImage;
+    private AnimatedImage cachedCustomImage;
 
     @Override
     protected void startUp()
@@ -339,7 +346,7 @@ public class JumpscarePlugin extends Plugin
      * Resolve which image to draw for this trigger: the custom image if configured and
      * loadable, otherwise the bundled default.
      */
-    private BufferedImage resolveImage(JumpscareTheme theme)
+    private AnimatedImage resolveImage(JumpscareTheme theme)
     {
         // The custom image only replaces the scary image; happy always uses the bundled one.
         if (theme == JumpscareTheme.HAPPY)
@@ -361,7 +368,7 @@ public class JumpscarePlugin extends Plugin
                 File imageFile = resolvePluginFile(name);
                 if (imageFile != null && imageFile.isFile())
                 {
-                    BufferedImage loaded = ImageIO.read(imageFile);
+                    AnimatedImage loaded = AnimatedImage.load(imageFile, MAX_ANIMATED_DIMENSION, 0);
                     if (loaded != null)
                     {
                         cachedCustomPath = name;
@@ -399,7 +406,7 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    private BufferedImage loadBundledImage(String resource)
+    private AnimatedImage loadBundledImage(String resource)
     {
         try (InputStream in = getClass().getResourceAsStream(resource))
         {
@@ -408,7 +415,7 @@ public class JumpscarePlugin extends Plugin
                 log.warn("Bundled {} resource not found on classpath", resource);
                 return null;
             }
-            return ImageIO.read(in);
+            return AnimatedImage.of(ImageIO.read(in));
         }
         catch (IOException e)
         {
@@ -431,7 +438,7 @@ public class JumpscarePlugin extends Plugin
         return scareStartTime;
     }
 
-    BufferedImage getActiveImage()
+    AnimatedImage getActiveImage()
     {
         return activeImage;
     }
