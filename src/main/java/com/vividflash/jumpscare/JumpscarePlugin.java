@@ -93,7 +93,7 @@ public class JumpscarePlugin extends Plugin
      * screen resolution would multiply the heap cost for little visible gain
      * during a sub-second scare.
      */
-    private static final int MAX_ANIMATED_DIMENSION = 640;
+    private static final int MAX_ANIMATED_DIMENSION = 512;
 
     /**
      * The image the overlay should draw for the current scare (bundled or custom).

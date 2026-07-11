@@ -56,8 +56,8 @@ final class AnimatedImage
      * animation multiplies out quickly. Decoding stops at whichever cap is
      * hit first and the animation simply loops over the frames kept.
      */
-    private static final int MAX_FRAMES = 150;
-    private static final long MAX_TOTAL_BYTES = 64L * 1024 * 1024;
+    private static final int MAX_FRAMES = 20;
+    private static final long MAX_TOTAL_BYTES = 24L * 1024 * 1024;
 
     /**
      * GIFs commonly declare 0 delay; browsers render those at ~100 ms per

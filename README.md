@@ -63,8 +63,8 @@ be loaded, the plugin falls back to the bundled image and logs a warning.
 Supported formats are what Java decodes out of the box: **PNG, JPG, GIF,
 BMP** (no WebP — that would need a third-party codec). **Animated GIFs
 play**, looping for the scare duration. To keep memory bounded, animation
-frames are downscaled to at most 640 px on their longest side and very long
-animations are truncated (at most 150 frames / 64 MB decoded).
+frames are downscaled to at most 512 px on their longest side and long
+animations are truncated to the first 20 frames.
 
 ### Custom sound (WAV only)
 
