@@ -15,18 +15,11 @@ Once per game tick, the plugin rolls a 1-in-N chance to trigger a jumpscare.
 When it fires, it covers the whole game canvas with a scare image (or flashing
 colours) for a configurable duration and plays a scream.
 
-### The odds (default 1 in 100000)
+### The odds (default 1 in 10000)
 
-The roll happens **once per game tick**, and a tick is **0.6 seconds**. So the
-expected number of ticks between scares at the default `chanceDenominator` of
-100000 is 100000 ticks, which is:
-
-```
-100000 ticks x 0.6 s/tick = 60000 s = 60000 / 3600 = ~16.7 hours
-```
-
-of continuous logged-in play, on average, between scares. Lower the value to
-make it more frequent (e.g. 1000 for testing), raise it to make it rarer.
+The roll happens once per game tick (0.6 s), so the default of 10000 averages
+out to roughly one scare per ~1.7 hours of logged-in play. Lower the value to
+make it more frequent, raise it to make it rarer.
 
 ## Testing it instantly
 
@@ -35,10 +28,6 @@ Type the chat command:
 ```
 ::stest
 ```
-
-(Not `::jumpscare` — that is a real built-in game command that makes your
-character jump, added by a Halloween event, so this plugin uses a different
-name to avoid the collision.)
 
 `::stest` uses your configured **Theme**. Two bundled themes ship with the
 plugin, and you can force either one for a test regardless of the setting:
@@ -56,7 +45,7 @@ is the intended way to preview your custom image/sound.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| Chance (1 in N) | 100000 | 1-in-N roll per game tick. See odds math above. |
+| Chance (1 in N) | 10000 | 1-in-N roll per game tick. See odds above. |
 | Duration (ms) | 1000 | How long the scare stays on screen. |
 | Mode | Image | `Image` = full-screen picture. `Flash` = flashing colours (see warning). |
 | Play sound | on | Play the scream when the scare fires. |

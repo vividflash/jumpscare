@@ -47,14 +47,14 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "chanceDenominator",
         name = "Chance (1 in N)",
-        description = "A 1 in N chance to trigger per game tick (a tick is 0.6s). Higher = rarer. Default 100000 is roughly one scare per ~16.7 hours of play.",
+        description = "A 1 in N chance to trigger per game tick (0.6s). Higher = rarer.",
         section = generalSection,
         position = 0
     )
     @Range(min = 1)
     default int chanceDenominator()
     {
-        return 100000;
+        return 10000;
     }
 
     @ConfigItem(
@@ -73,7 +73,8 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "mode",
         name = "Mode",
-        description = "Image shows a full-screen scare picture. Flash rapidly flashes colours (photosensitivity warning).",
+        description = "Image shows a full-screen scare picture. Flash rapidly flashes colours.<br><br>"
+            + "Epilepsy warning: Flash mode's rapid flashing can trigger seizures in photosensitive people.",
         section = generalSection,
         position = 2
     )
