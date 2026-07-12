@@ -70,18 +70,6 @@ public interface JumpscareConfig extends Config
         return 1000;
     }
 
-    @ConfigItem(
-        keyName = "theme",
-        name = "Theme",
-        description = "Scary shows the creepy face and scream; Happy shows a friendly picture and a cheerful jingle. ::stest happy / ::stest scary (or h / s) force one regardless of this setting.",
-        section = generalSection,
-        position = 2
-    )
-    default JumpscareTheme theme()
-    {
-        return JumpscareTheme.SCARY;
-    }
-
     // ------------------------------------------------------------------
     // Flash mode
     // ------------------------------------------------------------------
@@ -119,11 +107,23 @@ public interface JumpscareConfig extends Config
     String appearanceSection = "appearance";
 
     @ConfigItem(
-        keyName = "customImagePath",
-        name = "Custom image file",
-        description = "File name of a custom image inside your .runelite/jumpscare folder (created when the plugin starts) to show instead of the bundled one. PNG, JPG, GIF, BMP; animated GIFs play. Leave blank to use the bundled scare image.",
+        keyName = "imageSource",
+        name = "Image",
+        description = "Which scare image to show: Default (creepy face), Happy (friendly sun), or Custom (your file below). Custom falls back to Default if the file can't be loaded.",
         section = appearanceSection,
         position = 0
+    )
+    default AssetSource imageSource()
+    {
+        return AssetSource.DEFAULT;
+    }
+
+    @ConfigItem(
+        keyName = "customImagePath",
+        name = "Custom image file",
+        description = "File name of a custom image inside your .runelite/jumpscare folder (created when the plugin starts). PNG, JPG, GIF, BMP; animated GIFs play. Used when Image is set to Custom.",
+        section = appearanceSection,
+        position = 1
     )
     default String customImageFile()
     {
@@ -154,11 +154,23 @@ public interface JumpscareConfig extends Config
     }
 
     @ConfigItem(
+        keyName = "soundSource",
+        name = "Sound",
+        description = "Which sound to play: Default (scream), Happy (cheerful jingle), or Custom (your WAV below). Custom falls back to Default if the file can't be loaded.",
+        section = soundSection,
+        position = 1
+    )
+    default AssetSource soundSource()
+    {
+        return AssetSource.DEFAULT;
+    }
+
+    @ConfigItem(
         keyName = "volume",
         name = "Volume",
         description = "Playback volume (0-100). Plays through the client audio subsystem, independent of the in-game music/sound-effect sliders.",
         section = soundSection,
-        position = 1
+        position = 2
     )
     @Range(min = 0, max = 100)
     default int volume()
@@ -169,9 +181,9 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "customSoundPath",
         name = "Custom sound file",
-        description = "File name of a custom WAV (WAV only) inside your .runelite/jumpscare folder (created when the plugin starts) to play instead of the bundled scream. Leave blank to use the bundled sound.",
+        description = "File name of a custom WAV (WAV only) inside your .runelite/jumpscare folder (created when the plugin starts). Used when Sound is set to Custom.",
         section = soundSection,
-        position = 2
+        position = 3
     )
     default String customSoundFile()
     {

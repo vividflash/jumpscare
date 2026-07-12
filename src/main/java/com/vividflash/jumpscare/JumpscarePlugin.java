@@ -230,7 +230,7 @@ public class JumpscarePlugin extends Plugin
         int denominator = Math.max(1, config.chanceDenominator());
         if (random.nextInt(denominator) == 0)
         {
-            triggerJumpscare(config.theme());
+            triggerJumpscare(null);
         }
     }
 
@@ -242,41 +242,48 @@ public class JumpscarePlugin extends Plugin
             return;
         }
 
-        JumpscareTheme theme = config.theme();
+        // Plain ::stest previews the configured image/sound sources; an
+        // argument forces the full bundled scary or happy set instead.
+        JumpscareTheme forced = null;
         String[] args = event.getArguments();
         if (args != null && args.length > 0)
         {
             if ("happy".equalsIgnoreCase(args[0]) || "h".equalsIgnoreCase(args[0]))
             {
-                theme = JumpscareTheme.HAPPY;
+                forced = JumpscareTheme.HAPPY;
             }
             else if ("scary".equalsIgnoreCase(args[0]) || "s".equalsIgnoreCase(args[0]))
             {
-                theme = JumpscareTheme.SCARY;
+                forced = JumpscareTheme.SCARY;
             }
         }
-        triggerJumpscare(theme);
+        triggerJumpscare(forced);
     }
 
     /**
      * Fire a jumpscare now: resolve the image to show, arm the timing window, and
      * play the sound. Safe to call from any client-thread event handler; never throws.
+     *
+     * @param forced force the full bundled scary/happy set (::stest args);
+     *               null uses the configured image and sound sources.
      */
-    void triggerJumpscare(JumpscareTheme theme)
+    void triggerJumpscare(JumpscareTheme forced)
     {
         int duration = Math.max(1, config.durationMs());
-        activeTheme = theme;
-        activeImage = resolveImage(theme);
+        activeTheme = forced != null ? forced
+            : (config.imageSource() == AssetSource.HAPPY
+                ? JumpscareTheme.HAPPY : JumpscareTheme.SCARY);
+        activeImage = resolveImage(forced);
         scareStartTime = Instant.now();
         scareEndTime = scareStartTime.plusMillis(duration);
 
         if (config.soundEnabled())
         {
-            playScream(theme);
+            playScream(forced);
         }
     }
 
-    private void playScream(JumpscareTheme theme)
+    private void playScream(JumpscareTheme forced)
     {
         int volume = config.volume();
         if (volume <= 0)
@@ -289,7 +296,7 @@ public class JumpscarePlugin extends Plugin
 
         try
         {
-            byte[] wav = loadScreamBytes(theme);
+            byte[] wav = loadScreamBytes(forced);
             // AudioPlayer's gain parameter relies on the mixer exposing a MASTER_GAIN
             // control and is silently ignored where it doesn't; scaling the samples
             // ourselves works on every system, so prefer that and pass gain 0.
@@ -313,10 +320,13 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    private byte[] loadScreamBytes(JumpscareTheme theme) throws IOException
+    private byte[] loadScreamBytes(JumpscareTheme forced) throws IOException
     {
-        // The custom sound only replaces the scary sound; happy always uses the bundled jingle.
-        if (theme == JumpscareTheme.SCARY)
+        AssetSource source = forced == JumpscareTheme.HAPPY ? AssetSource.HAPPY
+            : forced == JumpscareTheme.SCARY ? AssetSource.DEFAULT
+            : config.soundSource();
+
+        if (source == AssetSource.CUSTOM)
         {
             String customSound = config.customSoundFile();
             if (customSound != null && !customSound.trim().isEmpty())
@@ -326,11 +336,11 @@ public class JumpscarePlugin extends Plugin
                 {
                     return Files.readAllBytes(soundFile.toPath());
                 }
-                log.warn("Custom sound file not found in {}, falling back to bundled scream: {}", PLUGIN_DIR, customSound);
             }
+            log.warn("Custom sound file not found in {}, falling back to the default scream: {}", PLUGIN_DIR, customSound);
         }
 
-        String resource = theme == JumpscareTheme.HAPPY ? "happy.wav" : "scream.wav";
+        String resource = source == AssetSource.HAPPY ? "happy.wav" : "scream.wav";
         try (InputStream in = getClass().getResourceAsStream(resource))
         {
             if (in == null)
@@ -411,44 +421,51 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * Resolve which image to draw for this trigger: the custom image if configured and
-     * loadable, otherwise the bundled default.
+     * Resolve which image to draw for this trigger from the configured source
+     * (or the forced bundled set for ::stest args). Custom falls back to the
+     * default image when the file is missing or unreadable.
      */
-    private AnimatedImage resolveImage(JumpscareTheme theme)
+    private AnimatedImage resolveImage(JumpscareTheme forced)
     {
-        // The custom image only replaces the scary image; happy always uses the bundled one.
-        if (theme == JumpscareTheme.HAPPY)
+        AssetSource source = forced == JumpscareTheme.HAPPY ? AssetSource.HAPPY
+            : forced == JumpscareTheme.SCARY ? AssetSource.DEFAULT
+            : config.imageSource();
+
+        if (source == AssetSource.HAPPY)
         {
             return bundledHappy;
         }
 
-        String customName = config.customImageFile();
-        if (customName != null && !customName.trim().isEmpty())
+        if (source == AssetSource.CUSTOM)
         {
-            String name = customName.trim();
-            if (name.equals(cachedCustomPath) && cachedCustomImage != null)
+            String customName = config.customImageFile();
+            if (customName != null && !customName.trim().isEmpty())
             {
-                return cachedCustomImage;
-            }
-
-            try
-            {
-                File imageFile = resolvePluginFile(name);
-                if (imageFile != null && imageFile.isFile())
+                String name = customName.trim();
+                if (name.equals(cachedCustomPath) && cachedCustomImage != null)
                 {
-                    AnimatedImage loaded = AnimatedImage.load(imageFile, MAX_ANIMATED_DIMENSION, 0);
-                    if (loaded != null)
-                    {
-                        cachedCustomPath = name;
-                        cachedCustomImage = loaded;
-                        return loaded;
-                    }
+                    return cachedCustomImage;
                 }
-                log.warn("Could not load custom image from {}, falling back to bundled: {}", PLUGIN_DIR, name);
-            }
-            catch (IOException e)
-            {
-                log.warn("Failed to read custom image, falling back to bundled: {}", name, e);
+
+                try
+                {
+                    File imageFile = resolvePluginFile(name);
+                    if (imageFile != null && imageFile.isFile())
+                    {
+                        AnimatedImage loaded = AnimatedImage.load(imageFile, MAX_ANIMATED_DIMENSION, 0);
+                        if (loaded != null)
+                        {
+                            cachedCustomPath = name;
+                            cachedCustomImage = loaded;
+                            return loaded;
+                        }
+                    }
+                    log.warn("Could not load custom image from {}, falling back to the default: {}", PLUGIN_DIR, name);
+                }
+                catch (IOException e)
+                {
+                    log.warn("Failed to read custom image, falling back to the default: {}", name, e);
+                }
             }
         }
 
