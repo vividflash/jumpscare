@@ -14,11 +14,11 @@ Once per game tick, the plugin rolls a 1-in-N chance to trigger a jumpscare.
 When it fires, it covers the whole game canvas with a scare image (or flashing
 colours) for a configurable duration and plays a scream.
 
-### The odds (default 1 in 10000)
+### The odds (default 1 in 6000)
 
-The roll happens once per game tick (0.6 s), so the default of 10000 averages
-out to roughly one scare per ~1.7 hours of logged-in play. Lower the value to
-make it more frequent, raise it to make it rarer.
+The roll happens once per game tick (0.6 s), so the default of 6000 averages
+out to roughly one scare per hour of play. Lower the value to make it more
+frequent, raise it to make it rarer.
 
 ## Testing it instantly
 
@@ -42,7 +42,7 @@ preview your settings and custom image/sound.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| Chance (1 in N) | 10000 | 1-in-N roll per game tick. See odds above. |
+| Chance (1 in N) | 6000 | 1-in-N roll per game tick. See odds above. |
 | Duration | 1000 ms | How long the scare stays on screen (max 10 s). |
 | Enable flash | off | In the **Flash mode** section; replaces the image with flashing colours (see warning). |
 | Image | Default | Default (creepy face) / Happy (sun) / Custom. Custom falls back to Default if the file can't be loaded. |

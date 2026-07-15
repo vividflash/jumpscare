@@ -55,7 +55,7 @@ public interface JumpscareConfig extends Config
     @Range(min = 1)
     default int chanceDenominator()
     {
-        return 10000;
+        return 6000;
     }
 
     @ConfigItem(
