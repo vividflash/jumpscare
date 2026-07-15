@@ -1,8 +1,7 @@
 # Jumpscare
 
-A RuneLite plugin that, very rarely, throws a full-screen jumpscare (a creepy
-image plus a scream sound) at you while you play Old School RuneScape. You have
-been warned.
+A RuneLite plugin that rarely throws a full-screen jumpscare (a changeable
+creepy image plus a changeable scream sound) at you while you play OSRS.
 
 > **Photosensitivity / epilepsy warning:** the optional **Flash** mode rapidly
 > flashes red, white and black. Rapid flashing can trigger seizures in
@@ -34,12 +33,10 @@ bundled sets ship with the plugin, and you can force either one for a test
 regardless of the settings:
 
 - `::stest scary` (or `::stest s`) — bundled creepy face + scream
-- `::stest happy` (or `::stest h`) — bundled smiling sun + cheerful jingle,
-  for testing without the heart attack
+- `::stest happy` (or `::stest h`) — bundled smiling sun + cheerful jingle
 
-This triggers a jumpscare immediately, regardless of the odds, so you can see
-what it looks like and tune your settings. It works even outside of combat and
-is the intended way to preview your custom image/sound.
+This triggers a jumpscare immediately, regardless of the odds — use it to
+preview your settings and custom image/sound.
 
 ## Configuration
 
@@ -64,42 +61,34 @@ file can't be loaded, the plugin falls back to the default image and logs a
 warning. Image and sound are picked independently — e.g. your own image with
 the happy jingle is fine.
 
-Supported formats are what Java decodes out of the box: **PNG, JPG, GIF,
-BMP** (no WebP — that would need a third-party codec). **Animated GIFs
-play**, looping for the scare duration. To keep memory bounded, animation
+Supported formats: **PNG, JPG, GIF, BMP** (no WebP). **Animated GIFs play**,
+looping for the scare duration. To keep memory bounded, animation
 frames are downscaled to at most 512 px on their longest side and long
 animations are truncated to the first 10 frames.
 
 ### Custom sound (WAV only)
 
 Drop a **WAV** file into your `.runelite/jumpscare` folder, set **Sound** to
-Custom and **Custom sound file** to its file name. The client
-plays audio through `javax.sound.sampled` (via RuneLite's `AudioPlayer`), which
-only supports **WAV / PCM** out of the box — there is **no MP3 or MP4 codec
-support**. If you want a specific jumpscare clip (for example one from a horror
-game), you must convert it to WAV yourself first; we do **not** bundle any
-copyrighted audio or images. Anything you supply is your own responsibility.
+Custom and **Custom sound file** to its file name. Sound must be **WAV
+(PCM)** — the client has no MP3/MP4 codec. Convert other formats to WAV
+first.
 
 If the custom WAV can't be loaded, the plugin falls back to the bundled scream
 and logs a warning.
 
-Replaced a custom file with a new one under the same name? Toggle the plugin
-off and on to reload it.
+After replacing a file under the same name, toggle the plugin off and on to
+reload it.
 
 ### Volume behaviour
 
-The scream plays through the client's own audio subsystem
-(`javax.sound.sampled` / RuneLite `AudioPlayer`), **independent of the in-game
-RuneScape music and sound-effect volume sliders**. It always plays at the
-plugin's own `Volume` config level regardless of those in-game sliders. Setting
-`Volume` to 0 disables playback entirely. Muting your whole application or
-system audio output will, of course, still silence it.
+The scream plays through the client's own audio subsystem, **independent of
+the in-game music and sound-effect volume sliders**. Setting `Volume` to 0
+disables playback entirely.
 
 ## Assets
 
-The bundled scare image, icon and scream sound are all original, procedurally
-generated content created for this plugin. No copyrighted characters, images or
-audio are included.
+All bundled assets (images, icon, sound) are original content made for this
+plugin.
 
 ## License
 
