@@ -83,6 +83,9 @@ copyrighted audio or images. Anything you supply is your own responsibility.
 If the custom WAV can't be loaded, the plugin falls back to the bundled scream
 and logs a warning.
 
+Replaced a custom file with a new one under the same name? Toggle the plugin
+off and on to reload it.
+
 ### Volume behaviour
 
 The scream plays through the client's own audio subsystem
