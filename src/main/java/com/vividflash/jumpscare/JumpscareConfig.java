@@ -29,6 +29,7 @@ import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Range;
+import net.runelite.client.config.Units;
 
 @ConfigGroup("jumpscare")
 public interface JumpscareConfig extends Config
@@ -59,12 +60,13 @@ public interface JumpscareConfig extends Config
 
     @ConfigItem(
         keyName = "durationMs",
-        name = "Duration (ms)",
-        description = "How long the jumpscare stays on screen, in milliseconds",
+        name = "Duration",
+        description = "How long the jumpscare stays on screen",
         section = generalSection,
         position = 1
     )
-    @Range(min = 1)
+    @Range(min = 1, max = 10000)
+    @Units(Units.MILLISECONDS)
     default int durationMs()
     {
         return 1000;
@@ -137,7 +139,7 @@ public interface JumpscareConfig extends Config
     @ConfigSection(
         name = "Sound",
         description = "Scream sound settings",
-        position = 2
+        position = 3
     )
     String soundSection = "sound";
 
@@ -168,11 +170,12 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "volume",
         name = "Volume",
-        description = "Playback volume (0-100). Plays through the client audio subsystem, independent of the in-game music/sound-effect sliders.",
+        description = "Playback volume. Plays through the client audio subsystem, independent of the in-game music/sound-effect sliders.",
         section = soundSection,
         position = 2
     )
     @Range(min = 0, max = 100)
+    @Units(Units.PERCENT)
     default int volume()
     {
         return 80;

@@ -32,6 +32,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Random;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.swing.JOptionPane;
@@ -67,6 +69,15 @@ public class JumpscarePlugin extends Plugin
 
     private static final String CONFIG_GROUP = "jumpscare";
     private static final String FLASH_MODE_KEY = "flashMode";
+    private static final String CUSTOM_IMAGE_KEY = "customImagePath";
+    private static final String CUSTOM_SOUND_KEY = "customSoundPath";
+
+    /**
+     * Hard ceiling on the scare duration, enforced in code as well as via
+     * {@code @Range} so a stale out-of-range config value can never leave a
+     * full-screen overlay covering the client indefinitely.
+     */
+    private static final int MAX_DURATION_MS = 10_000;
 
     /**
      * Hidden flag (never shown in the config panel) recording that the user
@@ -93,6 +104,9 @@ public class JumpscarePlugin extends Plugin
 
     @Inject
     private ConfigManager configManager;
+
+    @Inject
+    private ScheduledExecutorService executor;
 
     /**
      * When the current scare should stop being drawn. Null when no scare is active.
@@ -129,11 +143,21 @@ public class JumpscarePlugin extends Plugin
     private AnimatedImage bundledHappy;
 
     /**
-     * Cache of the last custom image loaded, keyed by its path, to avoid re-reading
-     * the same file from disk on every trigger.
+     * The configured custom image and sound, preloaded on the executor at
+     * startup and whenever their config keys change, so the trigger path
+     * (client thread) never touches the disk. Null when unset or unloadable —
+     * the trigger falls back to the bundled assets.
      */
-    private String cachedCustomPath;
-    private AnimatedImage cachedCustomImage;
+    private volatile AnimatedImage customImage;
+    private volatile byte[] customSoundBytes;
+
+    /**
+     * Load generations: each (re)load bumps its counter and only the newest
+     * load may publish its result, so a slow decode can't overwrite a newer
+     * config edit — and results arriving after shutDown are dropped.
+     */
+    private final AtomicInteger imageLoadGen = new AtomicInteger();
+    private final AtomicInteger soundLoadGen = new AtomicInteger();
 
     @Override
     protected void startUp()
@@ -144,6 +168,8 @@ public class JumpscarePlugin extends Plugin
         }
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
+        reloadCustomImage();
+        reloadCustomSound();
         overlayManager.add(overlay);
 
         // Flash mode may have been switched on while the plugin was disabled
@@ -163,6 +189,14 @@ public class JumpscarePlugin extends Plugin
         scareEndTime = null;
         scareStartTime = null;
         activeImage = null;
+        // Release all decoded frames so a disabled plugin pins no heap; the
+        // generation bumps also invalidate any load still in flight.
+        imageLoadGen.incrementAndGet();
+        soundLoadGen.incrementAndGet();
+        bundledScary = null;
+        bundledHappy = null;
+        customImage = null;
+        customSoundBytes = null;
     }
 
     @Provides
@@ -180,12 +214,102 @@ public class JumpscarePlugin extends Plugin
     @Subscribe
     public void onConfigChanged(ConfigChanged event)
     {
-        if (CONFIG_GROUP.equals(event.getGroup())
-            && FLASH_MODE_KEY.equals(event.getKey())
-            && Boolean.parseBoolean(event.getNewValue()))
+        if (!CONFIG_GROUP.equals(event.getGroup()))
+        {
+            return;
+        }
+
+        if (FLASH_MODE_KEY.equals(event.getKey()) && Boolean.parseBoolean(event.getNewValue()))
         {
             confirmFlashMode();
         }
+        else if (CUSTOM_IMAGE_KEY.equals(event.getKey()))
+        {
+            reloadCustomImage();
+        }
+        else if (CUSTOM_SOUND_KEY.equals(event.getKey()))
+        {
+            reloadCustomSound();
+        }
+    }
+
+    /**
+     * (Re)load the configured custom image on the executor, publishing into
+     * {@link #customImage}. Runs off the client thread so neither game ticks
+     * nor config edits ever wait on disk or GIF decoding.
+     */
+    private void reloadCustomImage()
+    {
+        int gen = imageLoadGen.incrementAndGet();
+        String configured = config.customImageFile();
+        String name = configured == null ? "" : configured.trim();
+        executor.execute(() ->
+        {
+            AnimatedImage loaded = null;
+            if (!name.isEmpty())
+            {
+                try
+                {
+                    File imageFile = resolvePluginFile(name);
+                    if (imageFile != null && imageFile.isFile())
+                    {
+                        loaded = AnimatedImage.load(imageFile, MAX_ANIMATED_DIMENSION, 0);
+                    }
+                    if (loaded == null)
+                    {
+                        log.warn("Could not load custom image from {}, the default will be used: {}", PLUGIN_DIR, name);
+                    }
+                }
+                catch (IOException e)
+                {
+                    log.warn("Failed to read custom image, the default will be used: {}", name, e);
+                }
+            }
+            if (gen == imageLoadGen.get())
+            {
+                customImage = loaded;
+            }
+        });
+    }
+
+    /**
+     * (Re)load the configured custom WAV's raw bytes on the executor,
+     * publishing into {@link #customSoundBytes}. Raw rather than
+     * volume-scaled so the cache survives volume changes; scaling happens
+     * in memory per trigger.
+     */
+    private void reloadCustomSound()
+    {
+        int gen = soundLoadGen.incrementAndGet();
+        String configured = config.customSoundFile();
+        String name = configured == null ? "" : configured.trim();
+        executor.execute(() ->
+        {
+            byte[] loaded = null;
+            if (!name.isEmpty())
+            {
+                try
+                {
+                    File soundFile = resolvePluginFile(name);
+                    if (soundFile != null && soundFile.isFile())
+                    {
+                        loaded = Files.readAllBytes(soundFile.toPath());
+                    }
+                    else
+                    {
+                        log.warn("Custom sound file not found in {}, the default scream will be used: {}", PLUGIN_DIR, name);
+                    }
+                }
+                catch (IOException e)
+                {
+                    log.warn("Failed to read custom sound, the default scream will be used: {}", name, e);
+                }
+            }
+            if (gen == soundLoadGen.get())
+            {
+                customSoundBytes = loaded;
+            }
+        });
     }
 
     /**
@@ -196,7 +320,9 @@ public class JumpscarePlugin extends Plugin
     {
         SwingUtilities.invokeLater(() ->
         {
-            int choice = JOptionPane.showConfirmDialog(null,
+            // Parented to the client canvas so the dialog opens on the client
+            // window instead of centred on the monitor (or behind the client).
+            int choice = JOptionPane.showConfirmDialog(client.getCanvas(),
                 "Flash mode rapidly flashes bright colours, which can trigger seizures\n"
                     + "in people with photosensitive epilepsy.\n\nEnable flash mode anyway?",
                 "Epilepsy warning",
@@ -237,12 +363,14 @@ public class JumpscarePlugin extends Plugin
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        if (!"stest".equals(event.getCommand()))
+        // Namespaced with the plugin name because commands are global across
+        // all plugins; a generic name risks colliding with another plugin.
+        if (!"jumpscare".equals(event.getCommand()))
         {
             return;
         }
 
-        // Plain ::stest previews the configured image/sound sources; an
+        // Plain ::jumpscare previews the configured image/sound sources; an
         // argument forces the full bundled scary or happy set instead.
         JumpscareTheme forced = null;
         String[] args = event.getArguments();
@@ -264,12 +392,12 @@ public class JumpscarePlugin extends Plugin
      * Fire a jumpscare now: resolve the image to show, arm the timing window, and
      * play the sound. Safe to call from any client-thread event handler; never throws.
      *
-     * @param forced force the full bundled scary/happy set (::stest args);
+     * @param forced force the full bundled scary/happy set (::jumpscare args);
      *               null uses the configured image and sound sources.
      */
     void triggerJumpscare(JumpscareTheme forced)
     {
-        int duration = Math.max(1, config.durationMs());
+        int duration = Math.min(MAX_DURATION_MS, Math.max(1, config.durationMs()));
         activeTheme = forced != null ? forced
             : (config.imageSource() == AssetSource.HAPPY
                 ? JumpscareTheme.HAPPY : JumpscareTheme.SCARY);
@@ -328,16 +456,13 @@ public class JumpscarePlugin extends Plugin
 
         if (source == AssetSource.CUSTOM)
         {
-            String customSound = config.customSoundFile();
-            if (customSound != null && !customSound.trim().isEmpty())
+            // Preloaded by reloadCustomSound(); null (unset/unloadable, already
+            // logged at load time) falls through to the bundled scream.
+            byte[] custom = customSoundBytes;
+            if (custom != null)
             {
-                File soundFile = resolvePluginFile(customSound.trim());
-                if (soundFile != null && soundFile.isFile())
-                {
-                    return Files.readAllBytes(soundFile.toPath());
-                }
+                return custom;
             }
-            log.warn("Custom sound file not found in {}, falling back to the default scream: {}", PLUGIN_DIR, customSound);
         }
 
         String resource = source == AssetSource.HAPPY ? "happy.wav" : "scream.wav";
@@ -422,8 +547,8 @@ public class JumpscarePlugin extends Plugin
 
     /**
      * Resolve which image to draw for this trigger from the configured source
-     * (or the forced bundled set for ::stest args). Custom falls back to the
-     * default image when the file is missing or unreadable.
+     * (or the forced bundled set for ::jumpscare args). Custom falls back to
+     * the default image when it was missing or unreadable at preload time.
      */
     private AnimatedImage resolveImage(JumpscareTheme forced)
     {
@@ -438,34 +563,10 @@ public class JumpscarePlugin extends Plugin
 
         if (source == AssetSource.CUSTOM)
         {
-            String customName = config.customImageFile();
-            if (customName != null && !customName.trim().isEmpty())
+            AnimatedImage custom = customImage;
+            if (custom != null)
             {
-                String name = customName.trim();
-                if (name.equals(cachedCustomPath) && cachedCustomImage != null)
-                {
-                    return cachedCustomImage;
-                }
-
-                try
-                {
-                    File imageFile = resolvePluginFile(name);
-                    if (imageFile != null && imageFile.isFile())
-                    {
-                        AnimatedImage loaded = AnimatedImage.load(imageFile, MAX_ANIMATED_DIMENSION, 0);
-                        if (loaded != null)
-                        {
-                            cachedCustomPath = name;
-                            cachedCustomImage = loaded;
-                            return loaded;
-                        }
-                    }
-                    log.warn("Could not load custom image from {}, falling back to the default: {}", PLUGIN_DIR, name);
-                }
-                catch (IOException e)
-                {
-                    log.warn("Failed to read custom image, falling back to the default: {}", name, e);
-                }
+                return custom;
             }
         }
 

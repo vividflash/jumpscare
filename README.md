@@ -26,16 +26,16 @@ make it more frequent, raise it to make it rarer.
 Type the chat command:
 
 ```
-::stest
+::jumpscare
 ```
 
-`::stest` previews your configured **Image** and **Sound** sources. Two
+`::jumpscare` previews your configured **Image** and **Sound** sources. Two
 bundled sets ship with the plugin, and you can force either one for a test
 regardless of the settings:
 
-- `::stest scary` (or `::stest s`) — bundled creepy face + scream
-- `::stest happy` (or `::stest h`) — bundled smiling sun + cheerful jingle,
-  for testing without the heart attack
+- `::jumpscare scary` (or `::jumpscare s`) — bundled creepy face + scream
+- `::jumpscare happy` (or `::jumpscare h`) — bundled smiling sun + cheerful
+  jingle, for testing without the heart attack
 
 This triggers a jumpscare immediately, regardless of the odds, so you can see
 what it looks like and tune your settings. It works even outside of combat and
@@ -46,7 +46,7 @@ is the intended way to preview your custom image/sound.
 | Setting | Default | Notes |
 | --- | --- | --- |
 | Chance (1 in N) | 10000 | 1-in-N roll per game tick. See odds above. |
-| Duration (ms) | 1000 | How long the scare stays on screen. |
+| Duration | 1000 ms | How long the scare stays on screen (max 10 s). |
 | Enable flash | off | In the **Flash mode** section; replaces the image with flashing colours (see warning). |
 | Image | Default | Default (creepy face) / Happy (sun) / Custom. Custom falls back to Default if the file can't be loaded. |
 | Sound | Default | Default (scream) / Happy (jingle) / Custom. Custom falls back to Default if the file can't be loaded. |
