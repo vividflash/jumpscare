@@ -26,16 +26,16 @@ make it more frequent, raise it to make it rarer.
 Type the chat command:
 
 ```
-::jumpscare
+::stest
 ```
 
-`::jumpscare` previews your configured **Image** and **Sound** sources. Two
+`::stest` previews your configured **Image** and **Sound** sources. Two
 bundled sets ship with the plugin, and you can force either one for a test
 regardless of the settings:
 
-- `::jumpscare scary` (or `::jumpscare s`) — bundled creepy face + scream
-- `::jumpscare happy` (or `::jumpscare h`) — bundled smiling sun + cheerful
-  jingle, for testing without the heart attack
+- `::stest scary` (or `::stest s`) — bundled creepy face + scream
+- `::stest happy` (or `::stest h`) — bundled smiling sun + cheerful jingle,
+  for testing without the heart attack
 
 This triggers a jumpscare immediately, regardless of the odds, so you can see
 what it looks like and tune your settings. It works even outside of combat and

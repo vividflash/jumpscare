@@ -363,14 +363,12 @@ public class JumpscarePlugin extends Plugin
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        // Namespaced with the plugin name because commands are global across
-        // all plugins; a generic name risks colliding with another plugin.
-        if (!"jumpscare".equals(event.getCommand()))
+        if (!"stest".equals(event.getCommand()))
         {
             return;
         }
 
-        // Plain ::jumpscare previews the configured image/sound sources; an
+        // Plain ::stest previews the configured image/sound sources; an
         // argument forces the full bundled scary or happy set instead.
         JumpscareTheme forced = null;
         String[] args = event.getArguments();
@@ -392,7 +390,7 @@ public class JumpscarePlugin extends Plugin
      * Fire a jumpscare now: resolve the image to show, arm the timing window, and
      * play the sound. Safe to call from any client-thread event handler; never throws.
      *
-     * @param forced force the full bundled scary/happy set (::jumpscare args);
+     * @param forced force the full bundled scary/happy set (::stest args);
      *               null uses the configured image and sound sources.
      */
     void triggerJumpscare(JumpscareTheme forced)
@@ -547,7 +545,7 @@ public class JumpscarePlugin extends Plugin
 
     /**
      * Resolve which image to draw for this trigger from the configured source
-     * (or the forced bundled set for ::jumpscare args). Custom falls back to
+     * (or the forced bundled set for ::stest args). Custom falls back to
      * the default image when it was missing or unreadable at preload time.
      */
     private AnimatedImage resolveImage(JumpscareTheme forced)
