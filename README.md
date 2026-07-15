@@ -1,7 +1,7 @@
 # Jumpscare
 
-A RuneLite plugin that rarely throws a full-screen jumpscare (a changeable
-creepy image plus a changeable scream sound) at you while you play OSRS.
+A RuneLite plugin that rarely throws a full-screen jumpscare at you while you
+play OSRS.
 
 > **Photosensitivity / epilepsy warning:** the optional **Flash** mode rapidly
 > flashes red, white and black. Rapid flashing can trigger seizures in
