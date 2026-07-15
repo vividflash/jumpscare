@@ -57,9 +57,9 @@ preview your settings and custom image/sound.
 Drop an image into your `.runelite/jumpscare` folder (created when the
 plugin starts), set **Image** to Custom and **Custom image file** to its file
 name, e.g. `myscare.png`. It is scaled to fill the whole game canvas. If the
-file can't be loaded, the plugin falls back to the default image and logs a
-warning. Image and sound are picked independently — e.g. your own image with
-the happy jingle is fine.
+file can't be loaded, the plugin falls back to the default image. Image and
+sound are picked independently — e.g. your own image with the happy jingle is
+fine.
 
 Supported formats: **PNG, JPG, GIF, BMP** (no WebP). **Animated GIFs play**,
 looping for the scare duration. To keep memory bounded, animation
@@ -73,8 +73,8 @@ Custom and **Custom sound file** to its file name. Sound must be **WAV
 (PCM)** — the client has no MP3/MP4 codec. Convert other formats to WAV
 first.
 
-If the custom WAV can't be loaded, the plugin falls back to the bundled scream
-and logs a warning.
+If the custom WAV can't be loaded, the plugin falls back to the bundled
+scream.
 
 After replacing a file under the same name, toggle the plugin off and on to
 reload it.
