@@ -39,12 +39,16 @@ import javax.inject.Inject;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
+import net.runelite.client.chat.ChatMessageBuilder;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -69,6 +73,17 @@ public class JumpscarePlugin extends Plugin
 
     private static final String CONFIG_GROUP = "jumpscare";
     private static final String FLASH_MODE_KEY = "flashMode";
+    private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
+
+    /**
+     * Release discipline: bump VERSION and UPDATE_MESSAGE together on every
+     * release (alongside build.gradle and runelite-plugin.properties). Minor
+     * releases describe that release; a major x.0 release summarises the
+     * important changes since the previous major.
+     */
+    private static final String VERSION = "1.3";
+    private static final String UPDATE_MESSAGE =
+        "Jumpscare v1.3: scares now average once per hour (configurable), smoother triggers, duration capped at 10s.";
     private static final String CUSTOM_IMAGE_KEY = "customImagePath";
     private static final String CUSTOM_SOUND_KEY = "customSoundPath";
 
@@ -107,6 +122,12 @@ public class JumpscarePlugin extends Plugin
 
     @Inject
     private ScheduledExecutorService executor;
+
+    @Inject
+    private ChatMessageManager chatMessageManager;
+
+    /** One update check per session; reset on startUp. */
+    private boolean updateChecked;
 
     /**
      * When the current scare should stop being drawn. Null when no scare is active.
@@ -162,6 +183,7 @@ public class JumpscarePlugin extends Plugin
     @Override
     protected void startUp()
     {
+        updateChecked = false;
         if (!PLUGIN_DIR.exists() && !PLUGIN_DIR.mkdirs())
         {
             log.warn("Could not create plugin folder {}", PLUGIN_DIR);
@@ -203,6 +225,39 @@ public class JumpscarePlugin extends Plugin
     JumpscareConfig provideConfig(ConfigManager configManager)
     {
         return configManager.getConfig(JumpscareConfig.class);
+    }
+
+    /**
+     * One-time post-update notice: on the first logged-in tick after the
+     * plugin version changes, drop a single line in chat summarising the
+     * update. Fresh installs (and updates from versions predating this
+     * notice) record the version silently.
+     */
+    private void maybeAnnounceUpdate()
+    {
+        if (updateChecked)
+        {
+            return;
+        }
+        updateChecked = true;
+
+        String lastSeen = configManager.getConfiguration(CONFIG_GROUP, LAST_SEEN_VERSION_KEY);
+        if (VERSION.equals(lastSeen))
+        {
+            return;
+        }
+        configManager.setConfiguration(CONFIG_GROUP, LAST_SEEN_VERSION_KEY, VERSION);
+        if (lastSeen == null || lastSeen.isEmpty())
+        {
+            return;
+        }
+
+        chatMessageManager.queue(QueuedMessage.builder()
+            .type(ChatMessageType.CONSOLE)
+            .runeLiteFormattedMessage(new ChatMessageBuilder()
+                .append(UPDATE_MESSAGE)
+                .build())
+            .build());
     }
 
     /**
@@ -346,6 +401,8 @@ public class JumpscarePlugin extends Plugin
         {
             return;
         }
+
+        maybeAnnounceUpdate();
 
         // Don't stack scares while one is still showing.
         if (isActive())
