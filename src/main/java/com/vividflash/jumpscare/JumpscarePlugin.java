@@ -81,11 +81,23 @@ public class JumpscarePlugin extends Plugin
      * releases describe that release; a major x.0 release summarises the
      * important changes since the previous major.
      */
-    private static final String VERSION = "1.3";
+    private static final String VERSION = "1.4";
     private static final String UPDATE_MESSAGE =
-        "Jumpscare v1.3: scares now average once per hour (configurable), smoother triggers, duration capped at 10s.";
+        "Jumpscare v1.4: settings from older versions carry over again, changed custom files are picked up "
+            + "without a plugin toggle, and ::stest now reports your custom file status in chat.";
     private static final String CUSTOM_IMAGE_KEY = "customImagePath";
     private static final String CUSTOM_SOUND_KEY = "customSoundPath";
+    private static final String IMAGE_SOURCE_KEY = "imageSource";
+    private static final String SOUND_SOURCE_KEY = "soundSource";
+
+    /** The pre-v1.2 Theme dropdown, read once by the source migration. */
+    private static final String OLD_THEME_KEY = "theme";
+
+    /**
+     * Hidden flag recording that the one-time source migration ran, so it
+     * never overrides a choice the user makes later.
+     */
+    private static final String SOURCE_MIGRATION_KEY = "customSourceMigrated";
 
     /**
      * Hard ceiling on the scare duration, enforced in code as well as via
@@ -173,6 +185,25 @@ public class JumpscarePlugin extends Plugin
     private volatile byte[] customSoundBytes;
 
     /**
+     * Human-readable outcome of the last custom image/sound load attempt
+     * ("loaded", "file not found in ...", ...), shown by plain ::stest so
+     * users can see why a custom file isn't used without digging through
+     * client.log. Null when no file name is configured (or none loaded yet).
+     */
+    private volatile String customImageStatus;
+    private volatile String customSoundStatus;
+
+    /**
+     * lastModified/length fingerprint of the custom file at its last load
+     * attempt (-1 when the file was missing). Each trigger re-stats the
+     * configured files on the executor and reloads on mismatch, so late
+     * file drops and same-name replacements heal by the next scare without
+     * a plugin toggle.
+     */
+    private volatile long customImageStamp;
+    private volatile long customSoundStamp;
+
+    /**
      * Load generations: each (re)load bumps its counter and only the newest
      * load may publish its result, so a slow decode can't overwrite a newer
      * config edit — and results arriving after shutDown are dropped.
@@ -190,6 +221,7 @@ public class JumpscarePlugin extends Plugin
         }
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
+        migrateSourcesOnce();
         reloadCustomImage();
         reloadCustomSound();
         overlayManager.add(overlay);
@@ -219,6 +251,52 @@ public class JumpscarePlugin extends Plugin
         bundledHappy = null;
         customImage = null;
         customSoundBytes = null;
+        customImageStatus = null;
+        customSoundStatus = null;
+        customImageStamp = 0;
+        customSoundStamp = 0;
+    }
+
+    /**
+     * v1.2 replaced the Theme dropdown and always-on custom files with
+     * per-asset source dropdowns, but left both new dropdowns at Default —
+     * silently dropping existing users' happy theme and custom files on
+     * update. One-time catch-up: seed each source key from the old settings
+     * when the user has never touched it.
+     */
+    private void migrateSourcesOnce()
+    {
+        if (Boolean.parseBoolean(configManager.getConfiguration(CONFIG_GROUP, SOURCE_MIGRATION_KEY)))
+        {
+            return;
+        }
+        configManager.setConfiguration(CONFIG_GROUP, SOURCE_MIGRATION_KEY, true);
+
+        // Pre-v1.2, Happy replaced both assets and custom files only ever
+        // applied to the scary theme.
+        boolean wasHappy = "HAPPY".equals(configManager.getConfiguration(CONFIG_GROUP, OLD_THEME_KEY));
+        if (configManager.getConfiguration(CONFIG_GROUP, IMAGE_SOURCE_KEY) == null)
+        {
+            if (wasHappy)
+            {
+                configManager.setConfiguration(CONFIG_GROUP, IMAGE_SOURCE_KEY, AssetSource.HAPPY.name());
+            }
+            else if (!trimmed(config.customImageFile()).isEmpty())
+            {
+                configManager.setConfiguration(CONFIG_GROUP, IMAGE_SOURCE_KEY, AssetSource.CUSTOM.name());
+            }
+        }
+        if (configManager.getConfiguration(CONFIG_GROUP, SOUND_SOURCE_KEY) == null)
+        {
+            if (wasHappy)
+            {
+                configManager.setConfiguration(CONFIG_GROUP, SOUND_SOURCE_KEY, AssetSource.HAPPY.name());
+            }
+            else if (!trimmed(config.customSoundFile()).isEmpty())
+            {
+                configManager.setConfiguration(CONFIG_GROUP, SOUND_SOURCE_KEY, AssetSource.CUSTOM.name());
+            }
+        }
     }
 
     @Provides
@@ -301,14 +379,23 @@ public class JumpscarePlugin extends Plugin
         executor.execute(() ->
         {
             AnimatedImage loaded = null;
+            String status = null;
+            long stamp = 0;
             if (!name.isEmpty())
             {
+                stamp = stampOf(name);
                 try
                 {
                     File imageFile = resolvePluginFile(name);
-                    if (imageFile != null && imageFile.isFile())
+                    if (imageFile == null || !imageFile.isFile())
+                    {
+                        status = "file not found in " + PLUGIN_DIR;
+                    }
+                    else
                     {
                         loaded = AnimatedImage.load(imageFile, MAX_ANIMATED_DIMENSION, 0);
+                        status = loaded != null ? "loaded"
+                            : "not a supported image format (PNG, JPG, GIF, BMP)";
                     }
                     if (loaded == null)
                     {
@@ -317,12 +404,15 @@ public class JumpscarePlugin extends Plugin
                 }
                 catch (IOException e)
                 {
+                    status = "could not be read";
                     log.warn("Failed to read custom image, the default will be used: {}", name, e);
                 }
             }
             if (gen == imageLoadGen.get())
             {
                 customImage = loaded;
+                customImageStatus = status;
+                customImageStamp = stamp;
             }
         });
     }
@@ -341,30 +431,78 @@ public class JumpscarePlugin extends Plugin
         executor.execute(() ->
         {
             byte[] loaded = null;
+            String status = null;
+            long stamp = 0;
             if (!name.isEmpty())
             {
+                stamp = stampOf(name);
                 try
                 {
                     File soundFile = resolvePluginFile(name);
                     if (soundFile != null && soundFile.isFile())
                     {
                         loaded = Files.readAllBytes(soundFile.toPath());
+                        status = "loaded";
                     }
                     else
                     {
+                        status = "file not found in " + PLUGIN_DIR;
                         log.warn("Custom sound file not found in {}, the default scream will be used: {}", PLUGIN_DIR, name);
                     }
                 }
                 catch (IOException e)
                 {
+                    status = "could not be read";
                     log.warn("Failed to read custom sound, the default scream will be used: {}", name, e);
                 }
             }
             if (gen == soundLoadGen.get())
             {
                 customSoundBytes = loaded;
+                customSoundStatus = status;
+                customSoundStamp = stamp;
             }
         });
+    }
+
+    /**
+     * Re-stat the configured custom files and reload any whose file changed
+     * (or appeared) since the last load attempt. Runs on the executor per
+     * trigger — the trigger path itself never touches the disk, and an
+     * unchanged broken file is not re-decoded every scare.
+     */
+    private void refreshCustomAssetsIfChanged()
+    {
+        String imageName = trimmed(config.customImageFile());
+        if (!imageName.isEmpty() && stampOf(imageName) != customImageStamp)
+        {
+            reloadCustomImage();
+        }
+        String soundName = trimmed(config.customSoundFile());
+        if (!soundName.isEmpty() && stampOf(soundName) != customSoundStamp)
+        {
+            reloadCustomSound();
+        }
+    }
+
+    /**
+     * lastModified/length fingerprint of a plugin-folder file; -1 when it
+     * is missing. Collisions only delay a reload until the next config
+     * change or plugin toggle, so mixing the two values is good enough.
+     */
+    private static long stampOf(String name)
+    {
+        File file = resolvePluginFile(name);
+        if (file == null || !file.isFile())
+        {
+            return -1;
+        }
+        return file.lastModified() ^ (file.length() << 20);
+    }
+
+    private static String trimmed(String value)
+    {
+        return value == null ? "" : value.trim();
     }
 
     /**
@@ -441,6 +579,64 @@ public class JumpscarePlugin extends Plugin
             }
         }
         triggerJumpscare(forced);
+        if (forced == null)
+        {
+            reportTestStatus();
+        }
+    }
+
+    /**
+     * Chat summary of what plain ::stest just used, so users can see why a
+     * custom file isn't playing without reading client.log. Only for the
+     * plain form — the forced variants always use the bundled sets.
+     */
+    private void reportTestStatus()
+    {
+        String sound;
+        if (!config.soundEnabled())
+        {
+            sound = "off (Play sound unticked)";
+        }
+        else if (config.volume() <= 0)
+        {
+            sound = "muted (volume 0)";
+        }
+        else
+        {
+            sound = describeSource(config.soundSource(), config.customSoundFile(), customSoundStatus);
+        }
+
+        chatMessageManager.queue(QueuedMessage.builder()
+            .type(ChatMessageType.CONSOLE)
+            .runeLiteFormattedMessage(new ChatMessageBuilder()
+                .append("Jumpscare test — image: ")
+                .append(describeSource(config.imageSource(), config.customImageFile(), customImageStatus))
+                .append(", sound: ")
+                .append(sound)
+                .build())
+            .build());
+    }
+
+    private static String describeSource(AssetSource source, String file, String status)
+    {
+        if (source != AssetSource.CUSTOM)
+        {
+            return source.toString();
+        }
+        String name = trimmed(file);
+        if (name.isEmpty())
+        {
+            return "Custom, but no file name is set (using Default)";
+        }
+        if (status == null)
+        {
+            return "Custom (" + name + ": still loading, run ::stest again)";
+        }
+        if ("loaded".equals(status))
+        {
+            return "Custom (" + name + ")";
+        }
+        return "Custom (" + name + ": " + status + " — using Default)";
     }
 
     /**
@@ -452,6 +648,7 @@ public class JumpscarePlugin extends Plugin
      */
     void triggerJumpscare(JumpscareTheme forced)
     {
+        executor.execute(this::refreshCustomAssetsIfChanged);
         int duration = Math.min(MAX_DURATION_MS, Math.max(1, config.durationMs()));
         activeTheme = forced != null ? forced
             : (config.imageSource() == AssetSource.HAPPY

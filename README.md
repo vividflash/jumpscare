@@ -36,7 +36,9 @@ regardless of the settings:
 - `::stest happy` (or `::stest h`) — bundled smiling sun + cheerful jingle
 
 This triggers a jumpscare immediately, regardless of the odds — use it to
-preview your settings and custom image/sound.
+preview your settings and custom image/sound. Plain `::stest` also prints a
+status line in chat showing which image and sound were used, including why a
+custom file could not be loaded (not found, unsupported format, ...).
 
 ## Configuration
 
@@ -76,8 +78,9 @@ first.
 If the custom WAV can't be loaded, the plugin falls back to the bundled
 scream.
 
-After replacing a file under the same name, toggle the plugin off and on to
-reload it.
+Custom files are re-checked on every scare (and every `::stest`), so adding
+a file late or replacing one under the same name is picked up by the next
+trigger — no plugin toggle needed.
 
 ### Volume behaviour
 
