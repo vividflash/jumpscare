@@ -95,14 +95,23 @@ public class JumpscarePlugin extends Plugin
 
     /**
      * v1.4's migration flag, recorded for every install while its migration
-     * did nothing (it tested keys the framework had already written). The
-     * v1.5 migration sweeps it back out of the profile; nothing reads it.
-     * REMOVE IN v1.6 — see RELEASE-TODO.md.
+     * did nothing (it tested keys the framework had already written).
      */
     private static final String DEAD_V14_MIGRATION_KEY = "customSourceMigrated";
 
     /** The pre-v1.2 Theme dropdown, read once by the source migration. */
     private static final String OLD_THEME_KEY = "theme";
+
+    /**
+     * Keys retired by earlier versions, cleared from the profile once so
+     * nobody keeps carrying settings that nothing reads — including testers
+     * who ran pre-1.0 builds straight from git. "mode" was a config item
+     * before v1.0, "theme" until v1.2 replaced it with the per-asset
+     * sources, and the third is v1.4's spent flag. The config framework only
+     * ever re-creates {@code @ConfigItem} defaults, so once these are gone
+     * they stay gone. REMOVE IN v1.6 — see RELEASE-TODO.md.
+     */
+    private static final String[] DEAD_KEYS = {"mode", OLD_THEME_KEY, DEAD_V14_MIGRATION_KEY};
 
     /**
      * Chance defaults shipped by earlier releases. RuneLite writes every
@@ -297,9 +306,11 @@ public class JumpscarePlugin extends Plugin
         migrateOversizeDuration();
         migrateAssetSources();
 
-        // Hidden keys are never re-created by the config framework (only
-        // @ConfigItem defaults are), so this dead flag goes for good.
-        configManager.unsetConfiguration(CONFIG_GROUP, DEAD_V14_MIGRATION_KEY);
+        // Last, so the migrations above can still read what they retire.
+        for (String dead : DEAD_KEYS)
+        {
+            configManager.unsetConfiguration(CONFIG_GROUP, dead);
+        }
     }
 
     /**
