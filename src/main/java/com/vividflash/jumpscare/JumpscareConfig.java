@@ -34,6 +34,21 @@ import net.runelite.client.config.Units;
 @ConfigGroup("jumpscare")
 public interface JumpscareConfig extends Config
 {
+    @ConfigItem(
+        keyName = "testMode",
+        name = "Test Mode",
+        description = "Temporary testing aid. While on: the scare chance is 1 in 10, sound is "
+            + "forced on at 80%, and your custom image is reloaded from disk (it still uses your "
+            + "normal image/flash settings). Enabling it fires one scare right away. Your own "
+            + "chance and sound settings are left untouched and take over again when you turn it "
+            + "off. Always resets to off when the client restarts.",
+        position = 0
+    )
+    default boolean testMode()
+    {
+        return false;
+    }
+
     // ------------------------------------------------------------------
     // General
     // ------------------------------------------------------------------

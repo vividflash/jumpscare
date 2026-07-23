@@ -95,6 +95,16 @@ public class JumpscarePlugin extends Plugin
     private static final String SOUND_SOURCE_KEY = "soundSource";
     private static final String CHANCE_KEY = "chanceDenominator";
     private static final String DURATION_KEY = "durationMs";
+    private static final String TEST_MODE_KEY = "testMode";
+
+    /**
+     * While Test Mode is on these override the read of the corresponding
+     * settings at trigger time. Nothing is written to the profile, so the
+     * user's real chance/sound/volume are untouched and simply take over
+     * again the moment the toggle goes off — no stash or restore needed.
+     */
+    private static final int TEST_MODE_CHANCE = 10;
+    private static final int TEST_MODE_VOLUME = 80;
 
     /**
      * v1.4's migration flag, recorded for every install while its migration
@@ -259,6 +269,15 @@ public class JumpscarePlugin extends Plugin
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
         migrateOnce();
+
+        // Test Mode is momentary: never let it survive a restart, so a session
+        // always begins on the user's real settings. Nothing else to undo —
+        // the override only ever lived in the read path, never in the profile.
+        if (config.testMode())
+        {
+            configManager.setConfiguration(CONFIG_GROUP, TEST_MODE_KEY, false);
+        }
+
         reloadCustomImage();
         reloadCustomSound();
         overlayManager.add(overlay);
@@ -457,6 +476,18 @@ public class JumpscarePlugin extends Plugin
         {
             reloadCustomSound();
         }
+        else if (TEST_MODE_KEY.equals(event.getKey()))
+        {
+            // Reload on both edges so a swapped custom file is picked up, then
+            // fire one scare immediately on enable for instant feedback.
+            reloadCustomImage();
+            if (Boolean.parseBoolean(event.getNewValue())
+                && client.getGameState() == GameState.LOGGED_IN
+                && !isActive())
+            {
+                triggerJumpscare(null);
+            }
+        }
     }
 
     /**
@@ -641,7 +672,9 @@ public class JumpscarePlugin extends Plugin
             return;
         }
 
-        int denominator = Math.max(1, config.chanceDenominator());
+        int denominator = config.testMode()
+            ? TEST_MODE_CHANCE
+            : Math.max(1, config.chanceDenominator());
         if (random.nextInt(denominator) == 0)
         {
             triggerJumpscare(null);
@@ -750,7 +783,7 @@ public class JumpscarePlugin extends Plugin
         scareStartTime = Instant.now();
         scareEndTime = scareStartTime.plusMillis(duration);
 
-        if (config.soundEnabled())
+        if (config.testMode() || config.soundEnabled())
         {
             playScream(forced);
         }
@@ -758,7 +791,7 @@ public class JumpscarePlugin extends Plugin
 
     private void playScream(JumpscareTheme forced)
     {
-        int volume = config.volume();
+        int volume = config.testMode() ? TEST_MODE_VOLUME : config.volume();
         if (volume <= 0)
         {
             return;
