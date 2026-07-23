@@ -91,6 +91,15 @@ public class JumpscarePlugin extends Plugin
     private static final String IMAGE_SOURCE_KEY = "imageSource";
     private static final String SOUND_SOURCE_KEY = "soundSource";
     private static final String CHANCE_KEY = "chanceDenominator";
+    private static final String DURATION_KEY = "durationMs";
+
+    /**
+     * v1.4's migration flag, recorded for every install while its migration
+     * did nothing (it tested keys the framework had already written). The
+     * v1.5 migration sweeps it back out of the profile; nothing reads it.
+     * REMOVE IN v1.6 — see RELEASE-TODO.md.
+     */
+    private static final String DEAD_V14_MIGRATION_KEY = "customSourceMigrated";
 
     /** The pre-v1.2 Theme dropdown, read once by the source migration. */
     private static final String OLD_THEME_KEY = "theme";
@@ -285,7 +294,27 @@ public class JumpscarePlugin extends Plugin
         }
         configManager.setConfiguration(CONFIG_GROUP, MIGRATION_KEY, true);
         migrateStaleChanceDefault();
+        migrateOversizeDuration();
         migrateAssetSources();
+
+        // Hidden keys are never re-created by the config framework (only
+        // @ConfigItem defaults are), so this dead flag goes for good.
+        configManager.unsetConfiguration(CONFIG_GROUP, DEAD_V14_MIGRATION_KEY);
+    }
+
+    /**
+     * Bring a duration above the cap back in range. v1.0 and v1.1 shipped no
+     * upper bound, so an early user can still hold a value the plugin has
+     * clamped at trigger time ever since v1.3 added one — the panel promises
+     * a length they never actually get. Writing the cap changes no behaviour,
+     * it just makes the setting say what already happens.
+     */
+    private void migrateOversizeDuration()
+    {
+        if (config.durationMs() > MAX_DURATION_MS)
+        {
+            configManager.setConfiguration(CONFIG_GROUP, DURATION_KEY, MAX_DURATION_MS);
+        }
     }
 
     /**
