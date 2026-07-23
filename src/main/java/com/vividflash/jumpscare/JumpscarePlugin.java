@@ -76,12 +76,7 @@ public class JumpscarePlugin extends Plugin
     private static final String FLASH_MODE_KEY = "flashMode";
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
-    /**
-     * Release discipline: bump VERSION and UPDATE_MESSAGE together on every
-     * release (alongside build.gradle and runelite-plugin.properties). Minor
-     * releases describe that release; a major x.0 release summarises the
-     * important changes since the previous major.
-     */
+    /** Keep in sync with build.gradle and runelite-plugin.properties on every release. */
     private static final String VERSION = "1.5";
     private static final String UPDATE_MESSAGE =
         "Jumpscare v1.5: your scare chance was on an outdated default and is now updated. "
@@ -116,33 +111,24 @@ public class JumpscarePlugin extends Plugin
     private static final String OLD_THEME_KEY = "theme";
 
     /**
-     * Keys retired by earlier versions, cleared from the profile once so
-     * nobody keeps carrying settings that nothing reads — including testers
-     * who ran pre-1.0 builds straight from git. "mode" was a config item
-     * before v1.0, "theme" until v1.2 replaced it with the per-asset
-     * sources, and the third is v1.4's spent flag. The config framework only
-     * ever re-creates {@code @ConfigItem} defaults, so once these are gone
-     * they stay gone. REMOVE IN v1.6 — see RELEASE-TODO.md.
+     * Keys retired by earlier versions, cleared from the profile once; the
+     * config framework only ever re-creates {@code @ConfigItem} defaults, so
+     * once these are gone they stay gone.
      */
     private static final String[] DEAD_KEYS = {"mode", OLD_THEME_KEY, DEAD_V14_MIGRATION_KEY};
 
     /**
      * Chance defaults shipped by earlier releases. RuneLite writes every
-     * config default into the user's profile the first time a plugin loads,
-     * so raising the default in a later release never reaches an existing
-     * install — they stay on whatever their first version wrote (1 in
-     * 100000 for v1.0, 1 in 10000 for v1.1). A value equal to one of these
-     * is indistinguishable from an inherited default and gets cleared once;
-     * anything else is treated as a deliberate choice and left alone.
+     * config default into the profile at first load, so raising the default
+     * later never reaches an existing install; a value equal to one of these
+     * is indistinguishable from an inherited default and gets cleared once,
+     * anything else is a deliberate choice and left alone.
      */
     private static final int[] STALE_CHANCE_DEFAULTS = {100_000, 10_000};
 
     /**
      * Hidden flag recording that the one-time migration ran, so it never
-     * overrides a choice the user makes later. v1.4 used its own key with a
-     * null check that could not work (the framework had already written the
-     * keys it tested), so that flag is set for everyone with nothing done —
-     * this release needs a fresh one.
+     * overrides a choice the user makes later.
      */
     private static final String MIGRATION_KEY = "migratedV15";
 
@@ -336,11 +322,9 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * Bring a duration above the cap back in range. v1.0 and v1.1 shipped no
-     * upper bound, so an early user can still hold a value the plugin has
-     * clamped at trigger time ever since v1.3 added one — the panel promises
-     * a length they never actually get. Writing the cap changes no behaviour,
-     * it just makes the setting say what already happens.
+     * Clamp a stored duration above the cap back in range; changes no
+     * behaviour since trigger time already clamps, it just makes the panel
+     * say what already happens.
      */
     private void migrateOversizeDuration()
     {
@@ -351,13 +335,11 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * Move a chance still sitting on a default shipped by an earlier release
-     * onto the current default. Unsetting the key alone is not enough: the
-     * framework only re-persists a default at client start, before this
-     * migration runs, so within the update session the key stays null — and
-     * the config panel renders an unset int as its range minimum (1). So
-     * unset to read today's default through the proxy, then write it back
-     * explicitly, leaving the panel correct immediately.
+     * Move a chance still on an old default onto today's default. Unsetting
+     * alone isn't enough: the config framework re-persists defaults at client
+     * start, before this runs, so an unset int would render as the panel's
+     * range minimum (1) for the rest of the session; unset to read today's
+     * default through the proxy, then write it back explicitly.
      */
     private void migrateStaleChanceDefault()
     {
@@ -374,12 +356,9 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * v1.2 replaced the Theme dropdown and always-on custom files with
-     * per-asset source dropdowns left at Default, silently dropping the
-     * happy theme and custom files of everyone who installed before it.
-     * The tell is a configured file name whose source is still Default:
-     * that name does nothing, so it cannot be what the user wanted. A
-     * pre-v1.2 Happy theme is restored the same way. Sources the user has
+     * Restore a custom file (or the Happy theme) left orphaned by an older
+     * profile: a configured file name whose source is still Default can't
+     * have been intended, since Default ignores it. Sources the user has
      * since pointed somewhere themselves are left alone.
      */
     private void migrateAssetSources()
