@@ -97,6 +97,6 @@ plugin.
 
 BSD 2-Clause. See [LICENSE](LICENSE).
 
-## Credits
+---
 
-Co-authored with Fable 5.
+Co-A: Fable 5
