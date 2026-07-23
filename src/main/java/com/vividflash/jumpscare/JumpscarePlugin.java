@@ -76,28 +76,44 @@ public class JumpscarePlugin extends Plugin
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
     /**
-     * Release discipline: bump VERSION and UPDATE_MESSAGE together on every
+     * Release discipline: bump VERSION and UPDATE_MESSAGES together on every
      * release (alongside build.gradle and runelite-plugin.properties). Minor
      * releases describe that release; a major x.0 release summarises the
      * important changes since the previous major.
      */
-    private static final String VERSION = "1.4";
-    private static final String UPDATE_MESSAGE =
-        "Jumpscare v1.4: settings from older versions carry over again, changed custom files are picked up "
-            + "without a plugin toggle, and ::stest now reports your custom file status in chat.";
+    private static final String VERSION = "1.5";
+    private static final String[] UPDATE_MESSAGES = {
+        "Jumpscare v1.5: your scare chance was on an outdated default and is now updated.",
+        "Fixed sources for v1.0, v1.1 and v1.3 users with migration.",
+    };
     private static final String CUSTOM_IMAGE_KEY = "customImagePath";
     private static final String CUSTOM_SOUND_KEY = "customSoundPath";
     private static final String IMAGE_SOURCE_KEY = "imageSource";
     private static final String SOUND_SOURCE_KEY = "soundSource";
+    private static final String CHANCE_KEY = "chanceDenominator";
 
     /** The pre-v1.2 Theme dropdown, read once by the source migration. */
     private static final String OLD_THEME_KEY = "theme";
 
     /**
-     * Hidden flag recording that the one-time source migration ran, so it
-     * never overrides a choice the user makes later.
+     * Chance defaults shipped by earlier releases. RuneLite writes every
+     * config default into the user's profile the first time a plugin loads,
+     * so raising the default in a later release never reaches an existing
+     * install — they stay on whatever their first version wrote (1 in
+     * 100000 for v1.0, 1 in 10000 for v1.1). A value equal to one of these
+     * is indistinguishable from an inherited default and gets cleared once;
+     * anything else is treated as a deliberate choice and left alone.
      */
-    private static final String SOURCE_MIGRATION_KEY = "customSourceMigrated";
+    private static final int[] STALE_CHANCE_DEFAULTS = {100_000, 10_000};
+
+    /**
+     * Hidden flag recording that the one-time migration ran, so it never
+     * overrides a choice the user makes later. v1.4 used its own key with a
+     * null check that could not work (the framework had already written the
+     * keys it tested), so that flag is set for everyone with nothing done —
+     * this release needs a fresh one.
+     */
+    private static final String MIGRATION_KEY = "migratedV15";
 
     /**
      * Hard ceiling on the scare duration, enforced in code as well as via
@@ -221,7 +237,7 @@ public class JumpscarePlugin extends Plugin
         }
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
-        migrateSourcesOnce();
+        migrateOnce();
         reloadCustomImage();
         reloadCustomSound();
         overlayManager.add(overlay);
@@ -258,24 +274,53 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * v1.2 replaced the Theme dropdown and always-on custom files with
-     * per-asset source dropdowns, but left both new dropdowns at Default —
-     * silently dropping existing users' happy theme and custom files on
-     * update. One-time catch-up: seed each source key from the old settings
-     * when the user has never touched it.
+     * One-time repair of settings that earlier releases left in a state the
+     * user cannot have intended, gated so it never overrides a later choice.
      */
-    private void migrateSourcesOnce()
+    private void migrateOnce()
     {
-        if (Boolean.parseBoolean(configManager.getConfiguration(CONFIG_GROUP, SOURCE_MIGRATION_KEY)))
+        if (Boolean.parseBoolean(configManager.getConfiguration(CONFIG_GROUP, MIGRATION_KEY)))
         {
             return;
         }
-        configManager.setConfiguration(CONFIG_GROUP, SOURCE_MIGRATION_KEY, true);
+        configManager.setConfiguration(CONFIG_GROUP, MIGRATION_KEY, true);
+        migrateStaleChanceDefault();
+        migrateAssetSources();
+    }
 
-        // Pre-v1.2, Happy replaced both assets and custom files only ever
-        // applied to the scary theme.
+    /**
+     * Clear a chance still sitting on a default shipped by an earlier
+     * release so the install picks up the current one — and any future
+     * change, since the value goes back to being unset rather than being
+     * rewritten with today's number.
+     */
+    private void migrateStaleChanceDefault()
+    {
+        int chance = config.chanceDenominator();
+        for (int stale : STALE_CHANCE_DEFAULTS)
+        {
+            if (chance == stale)
+            {
+                configManager.unsetConfiguration(CONFIG_GROUP, CHANCE_KEY);
+                return;
+            }
+        }
+    }
+
+    /**
+     * v1.2 replaced the Theme dropdown and always-on custom files with
+     * per-asset source dropdowns left at Default, silently dropping the
+     * happy theme and custom files of everyone who installed before it.
+     * The tell is a configured file name whose source is still Default:
+     * that name does nothing, so it cannot be what the user wanted. A
+     * pre-v1.2 Happy theme is restored the same way. Sources the user has
+     * since pointed somewhere themselves are left alone.
+     */
+    private void migrateAssetSources()
+    {
         boolean wasHappy = "HAPPY".equals(configManager.getConfiguration(CONFIG_GROUP, OLD_THEME_KEY));
-        if (configManager.getConfiguration(CONFIG_GROUP, IMAGE_SOURCE_KEY) == null)
+
+        if (config.imageSource() == AssetSource.DEFAULT)
         {
             if (wasHappy)
             {
@@ -286,7 +331,7 @@ public class JumpscarePlugin extends Plugin
                 configManager.setConfiguration(CONFIG_GROUP, IMAGE_SOURCE_KEY, AssetSource.CUSTOM.name());
             }
         }
-        if (configManager.getConfiguration(CONFIG_GROUP, SOUND_SOURCE_KEY) == null)
+        if (config.soundSource() == AssetSource.DEFAULT)
         {
             if (wasHappy)
             {
@@ -307,9 +352,10 @@ public class JumpscarePlugin extends Plugin
 
     /**
      * One-time post-update notice: on the first logged-in tick after the
-     * plugin version changes, drop a single line in chat summarising the
-     * update. Fresh installs (and updates from versions predating this
-     * notice) record the version silently.
+     * plugin version changes, summarise the update in chat. The version is
+     * recorded immediately, so it prints once after an update and not on
+     * later restarts or plugin toggles. Fresh installs (and updates from
+     * versions predating this notice) record the version silently.
      */
     private void maybeAnnounceUpdate()
     {
@@ -330,12 +376,15 @@ public class JumpscarePlugin extends Plugin
             return;
         }
 
-        chatMessageManager.queue(QueuedMessage.builder()
-            .type(ChatMessageType.CONSOLE)
-            .runeLiteFormattedMessage(new ChatMessageBuilder()
-                .append(UPDATE_MESSAGE)
-                .build())
-            .build());
+        for (String line : UPDATE_MESSAGES)
+        {
+            chatMessageManager.queue(QueuedMessage.builder()
+                .type(ChatMessageType.CONSOLE)
+                .runeLiteFormattedMessage(new ChatMessageBuilder()
+                    .append(line)
+                    .build())
+                .build());
+        }
     }
 
     /**
