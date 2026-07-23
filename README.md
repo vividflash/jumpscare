@@ -17,7 +17,7 @@ colours) for a configurable duration and plays a scream.
 ### The odds (default 1 in 6000)
 
 The roll happens once per game tick (0.6 s), so the default of 6000 averages
-out to roughly one scare per hour of play. Lower the value to make it more
+out to one scare per hour of play. Lower the value to make it more
 frequent, raise it to make it rarer.
 
 ## Testing it instantly
