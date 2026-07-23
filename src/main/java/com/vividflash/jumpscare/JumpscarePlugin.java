@@ -25,6 +25,7 @@
 package com.vividflash.jumpscare;
 
 import com.google.inject.Provides;
+import java.awt.Color;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -76,16 +77,18 @@ public class JumpscarePlugin extends Plugin
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
     /**
-     * Release discipline: bump VERSION and UPDATE_MESSAGES together on every
+     * Release discipline: bump VERSION and UPDATE_MESSAGE together on every
      * release (alongside build.gradle and runelite-plugin.properties). Minor
      * releases describe that release; a major x.0 release summarises the
      * important changes since the previous major.
      */
     private static final String VERSION = "1.5";
-    private static final String[] UPDATE_MESSAGES = {
-        "Jumpscare v1.5: your scare chance was on an outdated default and is now updated.",
-        "Fixed sources for v1.0, v1.1 and v1.3 users with migration.",
-    };
+    private static final String UPDATE_MESSAGE =
+        "Jumpscare v1.5: your scare chance was on an outdated default and is now updated. "
+            + "Fixed sources for v1.0, v1.1 and v1.3 users with migration.";
+
+    /** Near-black dark red for the one-time update notice. */
+    private static final Color UPDATE_MESSAGE_COLOR = new Color(0x480000);
     private static final String CUSTOM_IMAGE_KEY = "customImagePath";
     private static final String CUSTOM_SOUND_KEY = "customSoundPath";
     private static final String IMAGE_SOURCE_KEY = "imageSource";
@@ -329,10 +332,13 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * Clear a chance still sitting on a default shipped by an earlier
-     * release so the install picks up the current one — and any future
-     * change, since the value goes back to being unset rather than being
-     * rewritten with today's number.
+     * Move a chance still sitting on a default shipped by an earlier release
+     * onto the current default. Unsetting the key alone is not enough: the
+     * framework only re-persists a default at client start, before this
+     * migration runs, so within the update session the key stays null — and
+     * the config panel renders an unset int as its range minimum (1). So
+     * unset to read today's default through the proxy, then write it back
+     * explicitly, leaving the panel correct immediately.
      */
     private void migrateStaleChanceDefault()
     {
@@ -342,6 +348,7 @@ public class JumpscarePlugin extends Plugin
             if (chance == stale)
             {
                 configManager.unsetConfiguration(CONFIG_GROUP, CHANCE_KEY);
+                configManager.setConfiguration(CONFIG_GROUP, CHANCE_KEY, config.chanceDenominator());
                 return;
             }
         }
@@ -416,15 +423,12 @@ public class JumpscarePlugin extends Plugin
             return;
         }
 
-        for (String line : UPDATE_MESSAGES)
-        {
-            chatMessageManager.queue(QueuedMessage.builder()
-                .type(ChatMessageType.CONSOLE)
-                .runeLiteFormattedMessage(new ChatMessageBuilder()
-                    .append(line)
-                    .build())
-                .build());
-        }
+        chatMessageManager.queue(QueuedMessage.builder()
+            .type(ChatMessageType.CONSOLE)
+            .runeLiteFormattedMessage(new ChatMessageBuilder()
+                .append(UPDATE_MESSAGE_COLOR, UPDATE_MESSAGE)
+                .build())
+            .build());
     }
 
     /**
