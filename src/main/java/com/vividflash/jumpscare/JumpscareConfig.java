@@ -38,7 +38,7 @@ public interface JumpscareConfig extends Config
         keyName = "testMode",
         name = "Test Mode",
         description = "Try a scare without the ::stest command. While on, scares fire often "
-            + "(about 1 in 10) with sound, and one fires right away. Your normal settings return "
+            + "(1 in 10) with sound, and one fires right away. Your normal settings return "
             + "when you turn it off; always resets to off on restart.",
         position = 0
     )
