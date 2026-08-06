@@ -40,7 +40,7 @@ public interface JumpscareConfig extends Config
         description = "Try a scare without the ::stest command. While on, scares fire often "
             + "(1 in 10) with sound, and one fires right away. Your normal settings return "
             + "when you turn it off; always resets to off on restart.",
-        position = 0
+        position = -1
     )
     default boolean testMode()
     {
@@ -101,7 +101,9 @@ public interface JumpscareConfig extends Config
         keyName = "flashMode",
         name = "Enable flash (epilepsy warning)",
         description = "Replaces the scare image with rapidly flashing colours.<br><br>"
-            + "Epilepsy warning: rapid flashing can trigger seizures in photosensitive people.",
+            + "Epilepsy warning: rapid flashing can trigger seizures in photosensitive people."
+            + "<br><br>Enabling this asks for confirmation. If you decline, reopen these "
+            + "settings to see the box back off.",
         section = flashSection,
         position = 0
     )

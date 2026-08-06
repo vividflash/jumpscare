@@ -45,23 +45,32 @@ import org.w3c.dom.Node;
  * An image with one or more frames. Static formats (PNG, JPG, BMP, ...) load as
  * a single frame; animated GIFs are composited into full frames with per-frame
  * delays so a renderer can pick the frame for any elapsed time. Decoding uses
- * only the JRE's ImageIO — no third-party codecs.
+ * only the JRE's ImageIO, with no third-party codecs.
  */
 @Slf4j
 final class AnimatedImage
 {
     /**
-     * Hard caps so a pathological GIF cannot eat the client's heap: decoded
-     * frames are uncompressed ARGB (4 bytes per pixel), so a long high-res
-     * animation multiplies out quickly. Decoding stops at whichever cap is
-     * hit first and the animation simply loops over the frames kept.
+     * Caps on what is kept after decoding: frames are uncompressed ARGB (4
+     * bytes per pixel), so a long high-res animation multiplies out quickly.
+     * Decoding stops at whichever cap is hit first and the animation loops
+     * over the frames kept.
      */
     private static final int MAX_FRAMES = 10;
     private static final long MAX_TOTAL_BYTES = 24L * 1024 * 1024;
 
     /**
-     * GIFs commonly declare 0 delay; browsers render those at ~100 ms per
+     * Cap on what is decoded in the first place, checked against the declared
+     * dimensions before any pixel buffer is allocated. A file (or a GIF
+     * logical screen) larger than this on either side is refused rather than
+     * decoded, which bounds the peak allocation at 4096 * 4096 * 4 bytes.
+     */
+    static final int MAX_SOURCE_DIMENSION = 4096;
+
+    /**
+     * GIFs commonly declare 0 delay; browsers render those at about 100 ms per
      * frame, so match that rather than spinning through frames instantly.
+     * Declared delays below {@link #MIN_DELAY_MS} are raised to that floor.
      */
     private static final int MIN_DELAY_MS = 20;
     private static final int DEFAULT_DELAY_MS = 100;
@@ -104,7 +113,8 @@ final class AnimatedImage
      * Animated frames are downscaled to {@code maxAnimDimension} on their
      * longest side, static images to {@code maxStaticDimension}; pass 0 to
      * leave the respective size untouched. Returns null when no ImageIO
-     * reader recognises the file.
+     * reader recognises the file or when it is over {@link
+     * #MAX_SOURCE_DIMENSION}; the caller then keeps its bundled asset.
      */
     static AnimatedImage load(File file, int maxAnimDimension, int maxStaticDimension) throws IOException
     {
@@ -123,6 +133,10 @@ final class AnimatedImage
             try
             {
                 reader.setInput(input);
+                if (!withinSourceLimit(reader.getWidth(0), reader.getHeight(0)))
+                {
+                    return null;
+                }
                 int frameCount = "gif".equalsIgnoreCase(reader.getFormatName())
                     ? reader.getNumImages(true) : 1;
                 if (frameCount <= 1)
@@ -136,6 +150,22 @@ final class AnimatedImage
                 reader.dispose();
             }
         }
+    }
+
+    /**
+     * @return true when a declared size is small enough to decode. Logs the
+     *         refusal at debug; an oversize file is a user mistake, not a
+     *         fault worth a warning in every session's log.
+     */
+    private static boolean withinSourceLimit(int width, int height)
+    {
+        if (width > 0 && height > 0 && width <= MAX_SOURCE_DIMENSION && height <= MAX_SOURCE_DIMENSION)
+        {
+            return true;
+        }
+        log.debug("Refusing to decode a {}x{} image, the limit is {} px on a side",
+            width, height, MAX_SOURCE_DIMENSION);
+        return false;
     }
 
     /**
@@ -163,21 +193,14 @@ final class AnimatedImage
         return frames[frames.length - 1];
     }
 
-    int getWidth()
-    {
-        return frames[0].getWidth();
-    }
-
-    int getHeight()
-    {
-        return frames[0].getHeight();
-    }
-
     /**
      * Composite a multi-frame GIF into standalone full frames. GIF frames are
      * often partial diffs positioned inside a logical screen, so each frame is
      * drawn onto a persistent canvas and the canvas snapshotted, honouring the
      * frame's disposal method before the next one.
+     *
+     * @return the decoded animation, or null when the declared sizes are over
+     *         {@link #MAX_SOURCE_DIMENSION} or nothing decoded at all.
      */
     private static AnimatedImage decodeGif(ImageReader reader, int frameCount, int maxDimension)
         throws IOException
@@ -198,6 +221,13 @@ final class AnimatedImage
             canvasHeight = reader.getHeight(0);
         }
 
+        // The logical screen is metadata, so it can claim a size far beyond the
+        // frames it holds. Check it before allocating the compositing canvas.
+        if (!withinSourceLimit(canvasWidth, canvasHeight))
+        {
+            return null;
+        }
+
         BufferedImage canvas = new BufferedImage(canvasWidth, canvasHeight,
             BufferedImage.TYPE_INT_ARGB);
         List<BufferedImage> frames = new ArrayList<>();
@@ -206,6 +236,12 @@ final class AnimatedImage
 
         for (int i = 0; i < frameCount; i++)
         {
+            // Individual frames carry their own declared size, so each one is
+            // checked before it is decoded rather than trusting the screen.
+            if (!withinSourceLimit(reader.getWidth(i), reader.getHeight(i)))
+            {
+                break;
+            }
             BufferedImage frame = reader.read(i);
             Node tree = reader.getImageMetadata(i).getAsTree("javax_imageio_gif_image_1.0");
             Node descriptor = findNode(tree, "ImageDescriptor");
@@ -213,9 +249,13 @@ final class AnimatedImage
             int x = intAttribute(descriptor, "imageLeftPosition", 0);
             int y = intAttribute(descriptor, "imageTopPosition", 0);
             int delayMs = intAttribute(control, "delayTime", 0) * 10;
-            if (delayMs < MIN_DELAY_MS)
+            if (delayMs <= 0)
             {
                 delayMs = DEFAULT_DELAY_MS;
+            }
+            else if (delayMs < MIN_DELAY_MS)
+            {
+                delayMs = MIN_DELAY_MS;
             }
             String disposal = stringAttribute(control, "disposalMethod", "none");
 
@@ -253,7 +293,7 @@ final class AnimatedImage
             }
         }
 
-        return new AnimatedImage(frames, delays);
+        return frames.isEmpty() ? null : new AnimatedImage(frames, delays);
     }
 
     /**

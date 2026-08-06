@@ -48,6 +48,9 @@ public class JumpscareOverlay extends Overlay
     private final JumpscarePlugin plugin;
     private final JumpscareConfig config;
 
+    /** Reused across frames; the renderer only reads the size out of it. */
+    private final Dimension size = new Dimension();
+
     @Inject
     JumpscareOverlay(Client client, JumpscarePlugin plugin, JumpscareConfig config)
     {
@@ -84,8 +87,11 @@ public class JumpscareOverlay extends Overlay
             return null;
         }
 
+        // Clamped at zero: a wall-clock step backwards between the trigger and
+        // this frame would otherwise make every elapsed-time index negative.
         Instant start = plugin.getScareStartTime();
-        long elapsed = start == null ? 0L : Duration.between(start, Instant.now()).toMillis();
+        long elapsed = start == null ? 0L
+            : Math.max(0L, Duration.between(start, Instant.now()).toMillis());
 
         if (config.flashMode())
         {
@@ -96,7 +102,8 @@ public class JumpscareOverlay extends Overlay
             renderImage(graphics, width, height, elapsed);
         }
 
-        return new Dimension(width, height);
+        size.setSize(width, height);
+        return size;
     }
 
     private void renderImage(Graphics2D graphics, int width, int height, long elapsed)

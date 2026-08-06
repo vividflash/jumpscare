@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Random;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.imageio.ImageIO;
@@ -66,9 +67,9 @@ import net.runelite.client.ui.overlay.OverlayManager;
 public class JumpscarePlugin extends Plugin
 {
     /**
-     * All file I/O is restricted to this plugin-specific subfolder under
-     * .runelite (Plugin Hub requirement). Created on startup so users can
-     * drop their custom image/WAV into it.
+     * All file I/O stays inside this plugin-specific subfolder under
+     * .runelite. Created on startup so users can drop their custom image or
+     * WAV into it.
      */
     private static final File PLUGIN_DIR = new File(RuneLite.RUNELITE_DIR, "jumpscare");
 
@@ -82,8 +83,8 @@ public class JumpscarePlugin extends Plugin
         "Jumpscare v1.5: your scare chance was on an outdated default and is now updated. "
             + "Fixed sources for v1.0, v1.1 and v1.3 users with migration.";
 
-    /** Near-black dark red for the one-time update notice. */
-    private static final Color UPDATE_MESSAGE_COLOR = new Color(0x480000);
+    /** Dark red for the one-time update notice, legible on either chatbox background. */
+    private static final Color UPDATE_MESSAGE_COLOR = new Color(0x8B0000);
     private static final String CUSTOM_IMAGE_KEY = "customImagePath";
     private static final String CUSTOM_SOUND_KEY = "customSoundPath";
     private static final String IMAGE_SOURCE_KEY = "imageSource";
@@ -95,8 +96,8 @@ public class JumpscarePlugin extends Plugin
     /**
      * While Test Mode is on these override the read of the corresponding
      * settings at trigger time. Nothing is written to the profile, so the
-     * user's real chance/sound/volume are untouched and simply take over
-     * again the moment the toggle goes off — no stash or restore needed.
+     * user's real chance, sound and volume are untouched and take over again
+     * the moment the toggle goes off, with no stash or restore needed.
      */
     private static final int TEST_MODE_CHANCE = 10;
     private static final int TEST_MODE_VOLUME = 80;
@@ -193,6 +194,13 @@ public class JumpscarePlugin extends Plugin
     private static final int MAX_ANIMATED_DIMENSION = 512;
 
     /**
+     * Static custom images keep more detail than animated ones, since only one
+     * frame is held, but still get a ceiling so a very large file cannot pin
+     * tens of megabytes for as long as the plugin runs.
+     */
+    private static final int MAX_STATIC_DIMENSION = 2048;
+
+    /**
      * The image the overlay should draw for the current scare (bundled or custom).
      */
     private volatile AnimatedImage activeImage;
@@ -203,16 +211,19 @@ public class JumpscarePlugin extends Plugin
     private volatile JumpscareTheme activeTheme = JumpscareTheme.SCARY;
 
     /**
-     * The bundled default images, loaded once at start-up.
+     * The bundled default images and sounds, loaded once at start-up so no
+     * trigger has to go back to the jar for them.
      */
     private AnimatedImage bundledScary;
     private AnimatedImage bundledHappy;
+    private volatile byte[] bundledScreamBytes;
+    private volatile byte[] bundledHappyBytes;
 
     /**
      * The configured custom image and sound, preloaded on the executor at
-     * startup and whenever their config keys change, so the trigger path
-     * (client thread) never touches the disk. Null when unset or unloadable —
-     * the trigger falls back to the bundled assets.
+     * startup and whenever their config keys change, so the trigger path never
+     * reads a file. Null when unset or unloadable, in which case the trigger
+     * falls back to the bundled assets.
      */
     private volatile AnimatedImage customImage;
     private volatile byte[] customSoundBytes;
@@ -239,7 +250,7 @@ public class JumpscarePlugin extends Plugin
     /**
      * Load generations: each (re)load bumps its counter and only the newest
      * load may publish its result, so a slow decode can't overwrite a newer
-     * config edit — and results arriving after shutDown are dropped.
+     * config edit, and results arriving after shutDown are dropped.
      */
     private final AtomicInteger imageLoadGen = new AtomicInteger();
     private final AtomicInteger soundLoadGen = new AtomicInteger();
@@ -254,11 +265,13 @@ public class JumpscarePlugin extends Plugin
         }
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
+        bundledScreamBytes = loadBundledBytes("scream.wav");
+        bundledHappyBytes = loadBundledBytes("happy.wav");
         migrateOnce();
 
         // Test Mode is momentary: never let it survive a restart, so a session
-        // always begins on the user's real settings. Nothing else to undo —
-        // the override only ever lived in the read path, never in the profile.
+        // always begins on the user's real settings. There is nothing else to
+        // undo, since the override only ever lived in the read path.
         if (config.testMode())
         {
             configManager.setConfiguration(CONFIG_GROUP, TEST_MODE_KEY, false);
@@ -291,6 +304,8 @@ public class JumpscarePlugin extends Plugin
         soundLoadGen.incrementAndGet();
         bundledScary = null;
         bundledHappy = null;
+        bundledScreamBytes = null;
+        bundledHappyBytes = null;
         customImage = null;
         customSoundBytes = null;
         customImageStatus = null;
@@ -322,9 +337,8 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * Clamp a stored duration above the cap back in range; changes no
-     * behaviour since trigger time already clamps, it just makes the panel
-     * say what already happens.
+     * Clamp a stored duration above the cap back in range. Trigger time
+     * already clamps, so this only aligns the panel value with it.
      */
     private void migrateOversizeDuration()
     {
@@ -432,8 +446,8 @@ public class JumpscarePlugin extends Plugin
     /**
      * Confirm enabling flash mode with an epilepsy warning, reverting the
      * toggle if declined. Done here rather than via the ConfigItem warning
-     * attribute because that fires on every change — disabling flash again
-     * must not prompt.
+     * attribute, which fires on every change: disabling flash again must not
+     * prompt.
      */
     @Subscribe
     public void onConfigChanged(ConfigChanged event)
@@ -457,15 +471,34 @@ public class JumpscarePlugin extends Plugin
         }
         else if (TEST_MODE_KEY.equals(event.getKey()))
         {
-            // Reload on both edges so a swapped custom file is picked up, then
-            // fire one scare immediately on enable for instant feedback.
+            // Re-check both custom files on either edge. The reloads run on the
+            // executor, so a file swapped just now lands from the next scare on,
+            // not on the one this enable fires.
             reloadCustomImage();
+            reloadCustomSound();
             if (Boolean.parseBoolean(event.getNewValue())
                 && client.getGameState() == GameState.LOGGED_IN
                 && !isActive())
             {
                 triggerJumpscare(null);
             }
+        }
+    }
+
+    /**
+     * Hand work to the shared client executor. Rejection only happens while
+     * the client is shutting down, at which point dropping the task is the
+     * right outcome and must not surface as an exception to the caller.
+     */
+    private void submit(Runnable task)
+    {
+        try
+        {
+            executor.execute(task);
+        }
+        catch (RejectedExecutionException e)
+        {
+            log.debug("Executor rejected a jumpscare task, the client is shutting down");
         }
     }
 
@@ -479,7 +512,7 @@ public class JumpscarePlugin extends Plugin
         int gen = imageLoadGen.incrementAndGet();
         String configured = config.customImageFile();
         String name = configured == null ? "" : configured.trim();
-        executor.execute(() ->
+        submit(() ->
         {
             AnimatedImage loaded = null;
             String status = null;
@@ -496,9 +529,11 @@ public class JumpscarePlugin extends Plugin
                     }
                     else
                     {
-                        loaded = AnimatedImage.load(imageFile, MAX_ANIMATED_DIMENSION, 0);
+                        loaded = AnimatedImage.load(imageFile, MAX_ANIMATED_DIMENSION,
+                            MAX_STATIC_DIMENSION);
                         status = loaded != null ? "loaded"
-                            : "not a supported image format (PNG, JPG, GIF, BMP)";
+                            : "not a supported image format (PNG, JPG, GIF, BMP), or over "
+                                + AnimatedImage.MAX_SOURCE_DIMENSION + " px on a side";
                     }
                     if (loaded == null)
                     {
@@ -531,7 +566,7 @@ public class JumpscarePlugin extends Plugin
         int gen = soundLoadGen.incrementAndGet();
         String configured = config.customSoundFile();
         String name = configured == null ? "" : configured.trim();
-        executor.execute(() ->
+        submit(() ->
         {
             byte[] loaded = null;
             String status = null;
@@ -571,8 +606,8 @@ public class JumpscarePlugin extends Plugin
     /**
      * Re-stat the configured custom files and reload any whose file changed
      * (or appeared) since the last load attempt. Runs on the executor per
-     * trigger — the trigger path itself never touches the disk, and an
-     * unchanged broken file is not re-decoded every scare.
+     * trigger, keeping file access off the trigger path, and an unchanged
+     * broken file is not re-decoded every scare.
      */
     private void refreshCustomAssetsIfChanged()
     {
@@ -663,7 +698,10 @@ public class JumpscarePlugin extends Plugin
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        if (!"stest".equals(event.getCommand()))
+        String command = event.getCommand();
+        // ::stest is short enough that another plugin could claim it, so the
+        // plugin-specific name is offered alongside it.
+        if (!"stest".equalsIgnoreCase(command) && !"jumpscaretest".equalsIgnoreCase(command))
         {
             return;
         }
@@ -693,33 +731,48 @@ public class JumpscarePlugin extends Plugin
     /**
      * Chat summary of what plain ::stest just used, so users can see why a
      * custom file isn't playing without reading client.log. Only for the
-     * plain form — the forced variants always use the bundled sets.
+     * plain form, since the forced variants always use the bundled sets.
      */
     private void reportTestStatus()
     {
-        String sound;
-        if (!config.soundEnabled())
-        {
-            sound = "off (Play sound unticked)";
-        }
-        else if (config.volume() <= 0)
-        {
-            sound = "muted (volume 0)";
-        }
-        else
-        {
-            sound = describeSource(config.soundSource(), config.customSoundFile(), customSoundStatus);
-        }
-
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.CONSOLE)
             .runeLiteFormattedMessage(new ChatMessageBuilder()
-                .append("Jumpscare test — image: ")
-                .append(describeSource(config.imageSource(), config.customImageFile(), customImageStatus))
+                .append("Jumpscare test. Image: ")
+                .append(describeImageState())
                 .append(", sound: ")
-                .append(sound)
+                .append(describeSoundState())
                 .build())
             .build());
+    }
+
+    private String describeImageState()
+    {
+        if (config.flashMode())
+        {
+            return "flash mode, the image is not drawn";
+        }
+        return describeSource(config.imageSource(), config.customImageFile(), customImageStatus);
+    }
+
+    /**
+     * Describes the sound the way the trigger path resolves it, Test Mode
+     * overrides included, so the line never contradicts what was just heard.
+     */
+    private String describeSoundState()
+    {
+        boolean testMode = config.testMode();
+        if (!testMode && !config.soundEnabled())
+        {
+            return "off (Play sound unticked)";
+        }
+        int volume = testMode ? TEST_MODE_VOLUME : config.volume();
+        if (volume <= 0)
+        {
+            return "muted (volume 0)";
+        }
+        String source = describeSource(config.soundSource(), config.customSoundFile(), customSoundStatus);
+        return testMode ? source + " at " + volume + "% (Test Mode)" : source;
     }
 
     private static String describeSource(AssetSource source, String file, String status)
@@ -741,19 +794,22 @@ public class JumpscarePlugin extends Plugin
         {
             return "Custom (" + name + ")";
         }
-        return "Custom (" + name + ": " + status + " — using Default)";
+        return "Custom (" + name + ": " + status + "), using Default";
     }
 
     /**
      * Fire a jumpscare now: resolve the image to show, arm the timing window, and
-     * play the sound. Safe to call from any client-thread event handler; never throws.
+     * play the sound. Called from the client thread by the tick and command
+     * handlers, and from the Swing thread when Test Mode is switched on, so it
+     * only publishes fields and hands the slow work to the executor. It does
+     * not throw.
      *
      * @param forced force the full bundled scary/happy set (::stest args);
      *               null uses the configured image and sound sources.
      */
     void triggerJumpscare(JumpscareTheme forced)
     {
-        executor.execute(this::refreshCustomAssetsIfChanged);
+        submit(this::refreshCustomAssetsIfChanged);
         int duration = Math.min(MAX_DURATION_MS, Math.max(1, config.durationMs()));
         activeTheme = forced != null ? forced
             : (config.imageSource() == AssetSource.HAPPY
@@ -776,15 +832,27 @@ public class JumpscarePlugin extends Plugin
             return;
         }
 
-        // Squared for a perceptual-feeling curve: 50 ≈ quarter amplitude, 20 clearly quiet.
+        // Squared for a perceptual curve: 50 gives a quarter of the amplitude,
+        // 20 gives four percent of it.
         float amplitude = (volume / 100f) * (volume / 100f);
 
+        byte[] wav = screamBytes(forced);
+        if (wav == null)
+        {
+            return;
+        }
+        // Opening a clip acquires a mixer line and buffers the whole sound, so
+        // it goes to the executor rather than the thread that fired the scare.
+        submit(() -> playWav(wav, amplitude));
+    }
+
+    private void playWav(byte[] wav, float amplitude)
+    {
         try
         {
-            byte[] wav = loadScreamBytes(forced);
             // AudioPlayer's gain parameter relies on the mixer exposing a MASTER_GAIN
-            // control and is silently ignored where it doesn't; scaling the samples
-            // ourselves works on every system, so prefer that and pass gain 0.
+            // control and is ignored where it doesn't; scaling the samples ourselves
+            // works on every system, so prefer that and pass gain 0.
             byte[] scaled = scaleWavPcm16(wav, amplitude);
             if (scaled != null)
             {
@@ -793,8 +861,11 @@ public class JumpscarePlugin extends Plugin
             else
             {
                 // Unrecognized WAV flavour (custom file): let AudioPlayer decode it
-                // and fall back to best-effort mixer gain.
-                float gainDb = Math.max(-80f, (float) (20.0 * Math.log10(volume / 100.0)));
+                // and fall back to mixer gain. The dB comes from the same squared
+                // amplitude, so both paths land on one curve. -80 is the floor
+                // MASTER_GAIN controls advertise; a lower request would be refused
+                // outright and leave the clip at full volume.
+                float gainDb = (float) Math.max(-80.0, 20.0 * Math.log10(amplitude));
                 audioPlayer.play(new ByteArrayInputStream(wav), gainDb);
             }
         }
@@ -805,7 +876,12 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    private byte[] loadScreamBytes(JumpscareTheme forced) throws IOException
+    /**
+     * The WAV bytes for this trigger, read from the caches filled at startup
+     * and by {@link #reloadCustomSound()}. Null only when the bundled resource
+     * was missing at startup, which is already logged.
+     */
+    private byte[] screamBytes(JumpscareTheme forced)
     {
         AssetSource source = forced == JumpscareTheme.HAPPY ? AssetSource.HAPPY
             : forced == JumpscareTheme.SCARY ? AssetSource.DEFAULT
@@ -822,22 +898,13 @@ public class JumpscarePlugin extends Plugin
             }
         }
 
-        String resource = source == AssetSource.HAPPY ? "happy.wav" : "scream.wav";
-        try (InputStream in = getClass().getResourceAsStream(resource))
-        {
-            if (in == null)
-            {
-                throw new IOException("Bundled " + resource + " resource not found on classpath");
-            }
-            return in.readAllBytes();
-        }
+        return source == AssetSource.HAPPY ? bundledHappyBytes : bundledScreamBytes;
     }
 
     /**
      * Multiply every sample of a 16-bit PCM RIFF/WAVE by {@code amplitude}, returning
      * a scaled copy with the original headers intact. Returns null when the bytes are
      * not a WAV flavour this parser understands (caller falls back to mixer gain).
-     * Parsed by hand because the plugin hub disallows javax.sound.* in plugin code.
      */
     private static byte[] scaleWavPcm16(byte[] wav, float amplitude)
     {
@@ -857,9 +924,12 @@ public class JumpscarePlugin extends Plugin
         int pos = 12;
         while (pos + 8 <= out.length)
         {
-            int size = (out[pos + 4] & 0xFF) | (out[pos + 5] & 0xFF) << 8
-                | (out[pos + 6] & 0xFF) << 16 | (out[pos + 7] & 0xFF) << 24;
-            if (size < 0 || pos + 8 + size > out.length)
+            // Read as an unsigned 32-bit value into a long. Kept out of an int so
+            // a chunk claiming close to 2^31 bytes cannot wrap the bounds check
+            // and walk the loop off the end of the array.
+            long size = (out[pos + 4] & 0xFFL) | (out[pos + 5] & 0xFFL) << 8
+                | (out[pos + 6] & 0xFFL) << 16 | (out[pos + 7] & 0xFFL) << 24;
+            if (size > out.length - pos - 8)
             {
                 return null;
             }
@@ -884,7 +954,7 @@ public class JumpscarePlugin extends Plugin
                 {
                     return null;
                 }
-                int end = pos + 8 + size;
+                int end = pos + 8 + (int) size;
                 for (int i = pos + 8; i + 1 < end; i += 2)
                 {
                     int sample = (short) ((out[i] & 0xFF) | out[i + 1] << 8);
@@ -897,7 +967,7 @@ public class JumpscarePlugin extends Plugin
             }
 
             // Chunks are word-aligned; odd sizes are padded with one byte.
-            pos += 8 + size + (size & 1);
+            pos += 8 + (int) size + (int) (size & 1);
         }
         return null;
     }
@@ -959,6 +1029,24 @@ public class JumpscarePlugin extends Plugin
                 return null;
             }
             return AnimatedImage.of(ImageIO.read(in));
+        }
+        catch (IOException e)
+        {
+            log.warn("Failed to load bundled {}", resource, e);
+            return null;
+        }
+    }
+
+    private byte[] loadBundledBytes(String resource)
+    {
+        try (InputStream in = getClass().getResourceAsStream(resource))
+        {
+            if (in == null)
+            {
+                log.warn("Bundled {} resource not found on classpath", resource);
+                return null;
+            }
+            return in.readAllBytes();
         }
         catch (IOException e)
         {
