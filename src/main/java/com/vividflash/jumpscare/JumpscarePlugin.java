@@ -78,9 +78,9 @@ public class JumpscarePlugin extends Plugin
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
     /** Keep in sync with build.gradle and runelite-plugin.properties on every release. */
-    private static final String VERSION = "1.6";
+    private static final String VERSION = "1.6.1";
     private static final String UPDATE_MESSAGE =
-        "Jumpscare v1.6: Test Mode at the top of the settings previews your scare on demand. "
+        "Jumpscare v1.6.1: Test Mode at the top of the settings previews your scare on demand. "
             + "Custom sounds now match the bundled volume curve and ::stest reports the exact state.";
 
     /** Dark red for the one-time update notice, legible on either chatbox background. */

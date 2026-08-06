@@ -89,7 +89,7 @@ To keep memory bounded:
   used instead.
 - Static images are downscaled to at most 2048 px on their longest side.
 - Animation frames are downscaled to at most 512 px on their longest side, and
-  long animations are truncated to the first 10 frames.
+  long animations are truncated to the first 30 frames.
 
 ### Custom sound (WAV only)
 

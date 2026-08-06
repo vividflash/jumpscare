@@ -56,8 +56,8 @@ final class AnimatedImage
      * Decoding stops at whichever cap is hit first and the animation loops
      * over the frames kept.
      */
-    private static final int MAX_FRAMES = 10;
-    private static final long MAX_TOTAL_BYTES = 24L * 1024 * 1024;
+    private static final int MAX_FRAMES = 30;
+    private static final long MAX_TOTAL_BYTES = 32L * 1024 * 1024;
 
     /**
      * Cap on what is decoded in the first place, checked against the declared
