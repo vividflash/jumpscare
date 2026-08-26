@@ -61,7 +61,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 @Slf4j
 @PluginDescriptor(
     name = "Jumpscare",
-    description = "Rare jumpscare: full-screen image and scream sound",
+    description = "jumpscare: rare full-screen image and scream sound",
     tags = {"jumpscare", "scare", "prank", "fun"}
 )
 public class JumpscarePlugin extends Plugin
@@ -77,7 +77,7 @@ public class JumpscarePlugin extends Plugin
     private static final String FLASH_MODE_KEY = "flashMode";
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
-    /** Keep in sync with build.gradle and runelite-plugin.properties on every release. */
+    /** The release the one-time notice below belongs to, not the packaged version. */
     private static final String VERSION = "1.6.1";
     private static final String UPDATE_MESSAGE =
         "Jumpscare v1.6.1: Test Mode at the top of the settings previews your scare on demand. "
