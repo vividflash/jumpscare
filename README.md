@@ -111,11 +111,6 @@ The scream plays through the client's own audio subsystem, **independent of
 the in-game music and sound-effect volume sliders**. Setting `Volume` to 0
 disables playback entirely.
 
-## Assets
-
-All bundled assets (images, icon, sound) are original content made for this
-plugin.
-
 ## License
 
 BSD 2-Clause. See [LICENSE](LICENSE).

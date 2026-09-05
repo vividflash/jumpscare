@@ -3,9 +3,9 @@ plugins {
 }
 
 group = 'com.vividflash'
-version = '1.6.2'
+version = '1.6.3'
 
-def runeLiteVersion = '1.12.36'
+def runeLiteVersion = '1.12.38'
 
 repositories {
     maven {
