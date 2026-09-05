@@ -87,8 +87,6 @@ public class JumpscarePlugin extends Plugin
     private static final Color UPDATE_MESSAGE_COLOR = new Color(0x8B0000);
     private static final String CUSTOM_IMAGE_KEY = "customImagePath";
     private static final String CUSTOM_SOUND_KEY = "customSoundPath";
-    private static final String IMAGE_SOURCE_KEY = "imageSource";
-    private static final String SOUND_SOURCE_KEY = "soundSource";
     private static final String CHANCE_KEY = "chanceDenominator";
     private static final String DURATION_KEY = "durationMs";
     private static final String TEST_MODE_KEY = "testMode";
@@ -101,9 +99,6 @@ public class JumpscarePlugin extends Plugin
      */
     private static final int TEST_MODE_CHANCE = 10;
     private static final int TEST_MODE_VOLUME = 80;
-
-    /** The pre-v1.2 Theme dropdown, read once by the source migration. */
-    private static final String OLD_THEME_KEY = "theme";
 
     /**
      * Chance defaults shipped by earlier releases. RuneLite writes every
@@ -314,7 +309,6 @@ public class JumpscarePlugin extends Plugin
         configManager.setConfiguration(CONFIG_GROUP, MIGRATION_KEY, true);
         migrateStaleChanceDefault();
         migrateOversizeDuration();
-        migrateAssetSources();
     }
 
     /**
@@ -346,40 +340,6 @@ public class JumpscarePlugin extends Plugin
                 configManager.unsetConfiguration(CONFIG_GROUP, CHANCE_KEY);
                 configManager.setConfiguration(CONFIG_GROUP, CHANCE_KEY, config.chanceDenominator());
                 return;
-            }
-        }
-    }
-
-    /**
-     * Restore a custom file (or the Happy theme) left orphaned by an older
-     * profile: a configured file name whose source is still Default can't
-     * have been intended, since Default ignores it. Sources the user has
-     * since pointed somewhere themselves are left alone.
-     */
-    private void migrateAssetSources()
-    {
-        boolean wasHappy = "HAPPY".equals(configManager.getConfiguration(CONFIG_GROUP, OLD_THEME_KEY));
-
-        if (config.imageSource() == AssetSource.DEFAULT)
-        {
-            if (wasHappy)
-            {
-                configManager.setConfiguration(CONFIG_GROUP, IMAGE_SOURCE_KEY, AssetSource.HAPPY.name());
-            }
-            else if (!trimmed(config.customImageFile()).isEmpty())
-            {
-                configManager.setConfiguration(CONFIG_GROUP, IMAGE_SOURCE_KEY, AssetSource.CUSTOM.name());
-            }
-        }
-        if (config.soundSource() == AssetSource.DEFAULT)
-        {
-            if (wasHappy)
-            {
-                configManager.setConfiguration(CONFIG_GROUP, SOUND_SOURCE_KEY, AssetSource.HAPPY.name());
-            }
-            else if (!trimmed(config.customSoundFile()).isEmpty())
-            {
-                configManager.setConfiguration(CONFIG_GROUP, SOUND_SOURCE_KEY, AssetSource.CUSTOM.name());
             }
         }
     }
