@@ -102,21 +102,8 @@ public class JumpscarePlugin extends Plugin
     private static final int TEST_MODE_CHANCE = 10;
     private static final int TEST_MODE_VOLUME = 80;
 
-    /**
-     * v1.4's migration flag, recorded for every install while its migration
-     * did nothing (it tested keys the framework had already written).
-     */
-    private static final String DEAD_V14_MIGRATION_KEY = "customSourceMigrated";
-
     /** The pre-v1.2 Theme dropdown, read once by the source migration. */
     private static final String OLD_THEME_KEY = "theme";
-
-    /**
-     * Keys retired by earlier versions, cleared from the profile once; the
-     * config framework only ever re-creates {@code @ConfigItem} defaults, so
-     * once these are gone they stay gone.
-     */
-    private static final String[] DEAD_KEYS = {"mode", OLD_THEME_KEY, DEAD_V14_MIGRATION_KEY};
 
     /**
      * Chance defaults shipped by earlier releases. RuneLite writes every
@@ -328,12 +315,6 @@ public class JumpscarePlugin extends Plugin
         migrateStaleChanceDefault();
         migrateOversizeDuration();
         migrateAssetSources();
-
-        // Last, so the migrations above can still read what they retire.
-        for (String dead : DEAD_KEYS)
-        {
-            configManager.unsetConfiguration(CONFIG_GROUP, dead);
-        }
     }
 
     /**
