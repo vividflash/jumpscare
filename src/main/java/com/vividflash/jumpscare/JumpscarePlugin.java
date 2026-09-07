@@ -92,13 +92,10 @@ public class JumpscarePlugin extends Plugin
     private static final String TEST_MODE_KEY = "testMode";
 
     /**
-     * While Test Mode is on these override the read of the corresponding
-     * settings at trigger time. Nothing is written to the profile, so the
-     * user's real chance, sound and volume are untouched and take over again
-     * the moment the toggle goes off, with no stash or restore needed.
+     * Overrides the chance read at trigger time while Test Mode is on. Nothing
+     * is written to the profile, so no stash or restore is needed.
      */
     private static final int TEST_MODE_CHANCE = 10;
-    private static final int TEST_MODE_VOLUME = 80;
 
     /**
      * Chance defaults shipped by earlier releases. RuneLite writes every
@@ -697,23 +694,20 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * Describes the sound the way the trigger path resolves it, Test Mode
-     * overrides included, so the line never contradicts what was just heard.
+     * Describes the sound the way the trigger path resolves it, so the line
+     * never contradicts what was just heard.
      */
     private String describeSoundState()
     {
-        boolean testMode = config.testMode();
-        if (!testMode && !config.soundEnabled())
+        if (!config.soundEnabled())
         {
             return "off (Play sound unticked)";
         }
-        int volume = testMode ? TEST_MODE_VOLUME : config.volume();
-        if (volume <= 0)
+        if (config.volume() <= 0)
         {
             return "muted (volume 0)";
         }
-        String source = describeSource(config.soundSource(), config.customSoundFile(), customSoundStatus);
-        return testMode ? source + " at " + volume + "% (Test Mode)" : source;
+        return describeSource(config.soundSource(), config.customSoundFile(), customSoundStatus);
     }
 
     private static String describeSource(AssetSource source, String file, String status)
@@ -759,7 +753,7 @@ public class JumpscarePlugin extends Plugin
         scareStartTime = Instant.now();
         scareEndTime = scareStartTime.plusMillis(duration);
 
-        if (config.testMode() || config.soundEnabled())
+        if (config.soundEnabled())
         {
             playScream(forced);
         }
@@ -767,7 +761,7 @@ public class JumpscarePlugin extends Plugin
 
     private void playScream(JumpscareTheme forced)
     {
-        int volume = config.testMode() ? TEST_MODE_VOLUME : config.volume();
+        int volume = config.volume();
         if (volume <= 0)
         {
             return;

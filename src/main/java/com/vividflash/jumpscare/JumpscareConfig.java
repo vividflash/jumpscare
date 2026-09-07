@@ -193,7 +193,7 @@ public interface JumpscareConfig extends Config
     @Units(Units.PERCENT)
     default int volume()
     {
-        return 80;
+        return 50;
     }
 
     @ConfigItem(

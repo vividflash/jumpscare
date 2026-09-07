@@ -25,12 +25,10 @@ frequent, raise it to make it rarer.
 
 ### Test Mode
 
-**Test Mode** is the toggle at the top of the plugin settings. While it is on,
-the chance is overridden to 1 in 10 and the sound plays at 80%, and switching
-it on fires one scare straight away. It changes nothing in your saved
-settings: your real chance, volume and **Play sound** take over again the
-moment you switch it off, and it always resets to off when the client
-restarts.
+**Test Mode** is the toggle at the top of the plugin settings. It overrides the
+chance to 1 in 10 and fires one scare when you switch it on. Nothing is saved:
+your chance returns when you switch it off, and Test Mode is off again after a
+client restart.
 
 ### The chat command
 
@@ -60,14 +58,14 @@ custom file could not be loaded (not found, unsupported format, ...).
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| Test Mode | off | Overrides chance to 1 in 10 and sound to 80%, fires one scare on enable, resets to off on restart. |
+| Test Mode | off | Overrides chance to 1 in 10, fires one scare on enable, resets to off on restart. |
 | Chance (1 in N) | 6000 | 1-in-N roll per game tick. See odds above. |
 | Duration | 1000 ms | How long the scare stays on screen (max 10 s). |
 | Enable flash | off | In the **Flash mode** section; replaces the image with flashing colours (see warning). |
 | Image | Default | Default (creepy face) / Happy (sun) / Custom. Custom falls back to Default if the file can't be loaded. |
 | Sound | Default | Default (scream) / Happy (jingle) / Custom. Custom falls back to Default if the file can't be loaded. |
 | Play sound | on | Play the sound when the scare fires. |
-| Volume | 80 | 0-100. See volume behaviour below. |
+| Volume | 50 | 0-100. See volume behaviour below. |
 | Custom image file | (blank) | File name of an image inside your `.runelite/jumpscare` folder. Used when Image = Custom. |
 | Custom sound file | (blank) | File name of a **WAV** inside your `.runelite/jumpscare` folder. Used when Sound = Custom. |
 
@@ -114,7 +112,3 @@ disables playback entirely.
 ## License
 
 BSD 2-Clause. See [LICENSE](LICENSE).
-
----
-
-Co-A: Fable 5
