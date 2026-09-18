@@ -108,7 +108,3 @@ trigger without a plugin toggle.
 The scream plays through the client's own audio subsystem, **independent of
 the in-game music and sound-effect volume sliders**. Setting `Volume` to 0
 disables playback entirely.
-
-## License
-
-BSD 2-Clause. See [LICENSE](LICENSE).
