@@ -27,10 +27,8 @@ package com.vividflash.jumpscare;
 import com.google.inject.Provides;
 import java.awt.Color;
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Random;
 import java.util.concurrent.RejectedExecutionException;
@@ -46,7 +44,6 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameTick;
-import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
@@ -57,31 +54,33 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.Filepath;
 
 @Slf4j
 @PluginDescriptor(
     name = "Jumpscare",
     description = "jumpscare: rare full-screen image and scream sound",
-    tags = {"jumpscare", "scare", "prank", "fun"}
+    tags = {"jumpscare", "scare", "prank", "fun"},
+    internalName = "jumpscare",
+    legacyDataDirectory = "jumpscare"
 )
 public class JumpscarePlugin extends Plugin
 {
     /**
-     * All file I/O stays inside this plugin-specific subfolder under
-     * .runelite. Created on startup so users can drop their custom image or
-     * WAV into it.
+     * All file I/O stays inside this plugin's data folder. Created on
+     * startup so users can drop their custom image or WAV into it. Null
+     * when it could not be set up.
      */
-    private static final File PLUGIN_DIR = new File(RuneLite.RUNELITE_DIR, "jumpscare");
+    private volatile Filepath pluginDir;
 
     private static final String CONFIG_GROUP = "jumpscare";
     private static final String FLASH_MODE_KEY = "flashMode";
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
     /** The release the one-time notice below belongs to, not the packaged version. */
-    private static final String VERSION = "1.6.1";
+    private static final String VERSION = "1.7";
     private static final String UPDATE_MESSAGE =
-        "Jumpscare v1.6.1: Test Mode at the top of the settings previews your scare on demand. "
-            + "Custom sounds now match the bundled volume curve and ::stest reports the exact state.";
+        "Jumpscare v1.7: RuneLite now requires files to use .runelite/plugin-data/jumpscare instead, we have moved your files there from .runelite/jumpscare.";
 
     /** Dark red for the one-time update notice, legible on either chatbox background. */
     private static final Color UPDATE_MESSAGE_COLOR = new Color(0x8B0000);
@@ -238,9 +237,14 @@ public class JumpscarePlugin extends Plugin
     protected void startUp()
     {
         updateChecked = false;
-        if (!PLUGIN_DIR.exists() && !PLUGIN_DIR.mkdirs())
+        try
         {
-            log.warn("Could not create plugin folder {}", PLUGIN_DIR);
+            pluginDir = getPluginDirectory();
+            pluginDir.createDirectories();
+        }
+        catch (IOException | RuntimeException e)
+        {
+            log.warn("Could not create plugin folder", e);
         }
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
@@ -460,10 +464,10 @@ public class JumpscarePlugin extends Plugin
                 stamp = stampOf(name);
                 try
                 {
-                    File imageFile = resolvePluginFile(name);
+                    Filepath imageFile = resolvePluginFile(name);
                     if (imageFile == null || !imageFile.isFile())
                     {
-                        status = "file not found in " + PLUGIN_DIR;
+                        status = "file not found in " + pluginDir;
                     }
                     else
                     {
@@ -475,7 +479,7 @@ public class JumpscarePlugin extends Plugin
                     }
                     if (loaded == null)
                     {
-                        log.warn("Could not load custom image from {}, the default will be used: {}", PLUGIN_DIR, name);
+                        log.warn("Could not load custom image from {}, the default will be used: {}", pluginDir, name);
                     }
                 }
                 catch (IOException e)
@@ -514,16 +518,19 @@ public class JumpscarePlugin extends Plugin
                 stamp = stampOf(name);
                 try
                 {
-                    File soundFile = resolvePluginFile(name);
+                    Filepath soundFile = resolvePluginFile(name);
                     if (soundFile != null && soundFile.isFile())
                     {
-                        loaded = Files.readAllBytes(soundFile.toPath());
+                        try (InputStream in = soundFile.openInputStream())
+                        {
+                            loaded = in.readAllBytes();
+                        }
                         status = "loaded";
                     }
                     else
                     {
-                        status = "file not found in " + PLUGIN_DIR;
-                        log.warn("Custom sound file not found in {}, the default scream will be used: {}", PLUGIN_DIR, name);
+                        status = "file not found in " + pluginDir;
+                        log.warn("Custom sound file not found in {}, the default scream will be used: {}", pluginDir, name);
                     }
                 }
                 catch (IOException e)
@@ -566,14 +573,21 @@ public class JumpscarePlugin extends Plugin
      * is missing. Collisions only delay a reload until the next config
      * change or plugin toggle, so mixing the two values is good enough.
      */
-    private static long stampOf(String name)
+    private long stampOf(String name)
     {
-        File file = resolvePluginFile(name);
+        Filepath file = resolvePluginFile(name);
         if (file == null || !file.isFile())
         {
             return -1;
         }
-        return file.lastModified() ^ (file.length() << 20);
+        try
+        {
+            return file.getLastModifiedTime().toMillis() ^ (file.size() << 20);
+        }
+        catch (IOException e)
+        {
+            return -1;
+        }
     }
 
     private static String trimmed(String value)
@@ -936,19 +950,22 @@ public class JumpscarePlugin extends Plugin
     }
 
     /**
-     * Resolve a configured file name inside the plugin's .runelite subfolder.
+     * Resolve a configured file name inside the plugin's data folder.
      * Only files within that folder are ever read; a name that escapes it
      * (e.g. via "..") resolves to null.
      */
-    private static File resolvePluginFile(String name)
+    private Filepath resolvePluginFile(String name)
     {
+        Filepath dir = pluginDir;
+        if (dir == null)
+        {
+            return null;
+        }
         try
         {
-            File file = new File(PLUGIN_DIR, name);
-            String base = PLUGIN_DIR.getCanonicalPath() + File.separator;
-            return file.getCanonicalPath().startsWith(base) ? file : null;
+            return dir.join(name);
         }
-        catch (IOException e)
+        catch (IllegalArgumentException e)
         {
             return null;
         }

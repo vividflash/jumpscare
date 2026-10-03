@@ -66,12 +66,12 @@ custom file could not be loaded (not found, unsupported format, ...).
 | Sound | Default | Default (scream) / Happy (jingle) / Custom. Custom falls back to Default if the file can't be loaded. |
 | Play sound | on | Play the sound when the scare fires. |
 | Volume | 50 | 0-100. See volume behaviour below. |
-| Custom image file | (blank) | File name of an image inside your `.runelite/jumpscare` folder. Used when Image = Custom. |
-| Custom sound file | (blank) | File name of a **WAV** inside your `.runelite/jumpscare` folder. Used when Sound = Custom. |
+| Custom image file | (blank) | File name of an image inside your `.runelite/plugin-data/jumpscare` folder. Used when Image = Custom. |
+| Custom sound file | (blank) | File name of a **WAV** inside your `.runelite/plugin-data/jumpscare` folder. Used when Sound = Custom. |
 
 ### Custom image
 
-Drop an image into your `.runelite/jumpscare` folder (created when the
+Drop an image into your `.runelite/plugin-data/jumpscare` folder (created when the
 plugin starts), set **Image** to Custom and **Custom image file** to its file
 name, e.g. `myscare.png`. It is scaled to fill the whole game canvas. If the
 file can't be loaded, the plugin falls back to the default image. Image and
@@ -91,7 +91,7 @@ To keep memory bounded:
 
 ### Custom sound (WAV only)
 
-Drop a **WAV** file into your `.runelite/jumpscare` folder, set **Sound** to
+Drop a **WAV** file into your `.runelite/plugin-data/jumpscare` folder, set **Sound** to
 Custom and **Custom sound file** to its file name. Sound must be **WAV
 (PCM)**, since the client has no MP3/MP4 codec. Convert other formats to WAV
 first.

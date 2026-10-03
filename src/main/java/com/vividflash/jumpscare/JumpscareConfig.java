@@ -138,7 +138,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "customImagePath",
         name = "Custom image file",
-        description = "File name of a custom image inside your .runelite/jumpscare folder (created when the plugin starts). PNG, JPG, GIF, BMP; animated GIFs play. Used when Image is set to Custom.",
+        description = "File name of a custom image inside your .runelite/plugin-data/jumpscare folder (created when the plugin starts). PNG, JPG, GIF, BMP; animated GIFs play. Used when Image is set to Custom.",
         section = appearanceSection,
         position = 1
     )
@@ -199,7 +199,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "customSoundPath",
         name = "Custom sound file",
-        description = "File name of a custom WAV (WAV only) inside your .runelite/jumpscare folder (created when the plugin starts). Used when Sound is set to Custom.",
+        description = "File name of a custom WAV (WAV only) inside your .runelite/plugin-data/jumpscare folder (created when the plugin starts). Used when Sound is set to Custom.",
         section = soundSection,
         position = 3
     )

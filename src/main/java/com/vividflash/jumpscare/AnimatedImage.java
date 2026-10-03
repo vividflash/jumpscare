@@ -28,8 +28,8 @@ import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -37,7 +37,9 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.MemoryCacheImageInputStream;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.util.Filepath;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 
@@ -116,14 +118,11 @@ final class AnimatedImage
      * reader recognises the file or when it is over {@link
      * #MAX_SOURCE_DIMENSION}; the caller then keeps its bundled asset.
      */
-    static AnimatedImage load(File file, int maxAnimDimension, int maxStaticDimension) throws IOException
+    static AnimatedImage load(Filepath file, int maxAnimDimension, int maxStaticDimension) throws IOException
     {
-        try (ImageInputStream input = ImageIO.createImageInputStream(file))
+        try (InputStream in = file.openInputStream();
+            ImageInputStream input = new MemoryCacheImageInputStream(in))
         {
-            if (input == null)
-            {
-                return null;
-            }
             Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
             if (!readers.hasNext())
             {
