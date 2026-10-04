@@ -37,9 +37,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "testMode",
         name = "Test Mode",
-        description = "Try a scare without the ::stest command. While on, scares fire often "
-            + "(1 in 10) with sound, and one fires right away. Your normal settings return "
-            + "when you turn it off; always resets to off on restart.",
+        description = "Try a scare without the ::stest command. Fires one right away, then at 1 in 10 with sound. Turns off on restart.",
         position = -1
     )
     default boolean testMode()
@@ -53,7 +51,7 @@ public interface JumpscareConfig extends Config
 
     @ConfigSection(
         name = "General",
-        description = "Odds, duration and mode of the jumpscare",
+        description = "",
         position = 0
     )
     String generalSection = "general";
@@ -61,7 +59,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "chanceDenominator",
         name = "Chance (1 in N)",
-        description = "A 1 in N chance to trigger per game tick (0.6s). Higher = rarer.",
+        description = "Rolled every game tick (0.6s).",
         section = generalSection,
         position = 0
     )
@@ -74,7 +72,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "durationMs",
         name = "Duration",
-        description = "How long the jumpscare stays on screen",
+        description = "",
         section = generalSection,
         position = 1
     )
@@ -102,8 +100,8 @@ public interface JumpscareConfig extends Config
         name = "Enable flash (epilepsy warning)",
         description = "Replaces the scare image with rapidly flashing colours.<br><br>"
             + "Epilepsy warning: rapid flashing can trigger seizures in photosensitive people."
-            + "<br><br>Enabling this asks for confirmation. If you decline, reopen these "
-            + "settings to see the box back off.",
+            + "<br><br>Asks for confirmation. If you decline, reopen these settings to "
+            + "see the box unticked.",
         section = flashSection,
         position = 0
     )
@@ -118,7 +116,7 @@ public interface JumpscareConfig extends Config
 
     @ConfigSection(
         name = "Appearance",
-        description = "Custom image for the jumpscare",
+        description = "",
         position = 2
     )
     String appearanceSection = "appearance";
@@ -126,7 +124,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "imageSource",
         name = "Image",
-        description = "Which scare image to show: Default (creepy face), Happy (friendly sun), or Custom (your file below). Custom falls back to Default if the file can't be loaded.",
+        description = "Default is a creepy face, Happy a friendly sun. Custom falls back to Default if the file can't be loaded.",
         section = appearanceSection,
         position = 0
     )
@@ -138,7 +136,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "customImagePath",
         name = "Custom image file",
-        description = "File name of a custom image inside your .runelite/plugin-data/jumpscare folder (created when the plugin starts). PNG, JPG, GIF, BMP; animated GIFs play. Used when Image is set to Custom.",
+        description = "File name of an image in .runelite/plugin-data/jumpscare. PNG, JPG, GIF or BMP; animated GIFs play.",
         section = appearanceSection,
         position = 1
     )
@@ -153,7 +151,7 @@ public interface JumpscareConfig extends Config
 
     @ConfigSection(
         name = "Sound",
-        description = "Scream sound settings",
+        description = "",
         position = 3
     )
     String soundSection = "sound";
@@ -161,7 +159,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "soundEnabled",
         name = "Play sound",
-        description = "Play a scream sound when the jumpscare triggers",
+        description = "",
         section = soundSection,
         position = 0
     )
@@ -173,7 +171,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "soundSource",
         name = "Sound",
-        description = "Which sound to play: Default (scream), Happy (cheerful jingle), or Custom (your WAV below). Custom falls back to Default if the file can't be loaded.",
+        description = "Default is a scream, Happy a cheerful jingle. Custom falls back to Default if the file can't be loaded.",
         section = soundSection,
         position = 1
     )
@@ -185,7 +183,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "volume",
         name = "Volume",
-        description = "Playback volume. Plays through the client audio subsystem, independent of the in-game music/sound-effect sliders.",
+        description = "Independent of the in-game volume sliders.",
         section = soundSection,
         position = 2
     )
@@ -199,7 +197,7 @@ public interface JumpscareConfig extends Config
     @ConfigItem(
         keyName = "customSoundPath",
         name = "Custom sound file",
-        description = "File name of a custom WAV (WAV only) inside your .runelite/plugin-data/jumpscare folder (created when the plugin starts). Used when Sound is set to Custom.",
+        description = "File name of a WAV in .runelite/plugin-data/jumpscare.",
         section = soundSection,
         position = 3
     )

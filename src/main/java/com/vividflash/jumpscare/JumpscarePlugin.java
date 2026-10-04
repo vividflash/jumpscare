@@ -59,7 +59,7 @@ import net.runelite.client.util.Filepath;
 @Slf4j
 @PluginDescriptor(
     name = "Jumpscare",
-    description = "jumpscare: rare full-screen image and scream sound",
+    description = "Rare full-screen image and scream sound",
     tags = {"jumpscare", "scare", "prank", "fun"},
     internalName = "jumpscare",
     legacyDataDirectory = "jumpscare"

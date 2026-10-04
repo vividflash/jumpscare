@@ -4,107 +4,73 @@ A RuneLite plugin that rarely throws a full-screen jumpscare at you while you
 play OSRS.
 
 > **Photosensitivity / epilepsy warning:** the optional **Flash** mode rapidly
-> flashes bright colours (red, white and black with the scary set, yellow, pink
-> and blue with the happy one). Rapid flashing can trigger seizures in
+> flashes bright colours (red, white and black with the scary set, yellow,
+> pink and blue with the happy one). Rapid flashing can trigger seizures in
 > photosensitive individuals. If you are sensitive to flashing lights, leave
 > flash disabled (the default) or disable the plugin entirely.
 
-## What it does
+## Features
 
-Once per game tick, the plugin rolls a 1-in-N chance to trigger a jumpscare.
-When it fires, it covers the whole game canvas with a scare image (or flashing
-colours) for a configurable duration and plays a scream.
+- **Test Mode**: the toggle at the top of the settings. Overrides the chance
+  to 1 in 10 and fires one scare when you switch it on. Your chance returns
+  when you switch it off, and it is off again after a client restart.
 
-### The odds (default 1 in 6000)
+**General**
 
-The roll happens once per game tick (0.6 s), so the default of 6000 averages
-out to one scare per hour of play. Lower the value to make it more
-frequent, raise it to make it rarer.
+- **Chance (1 in N)**: rolled once per game tick (0.6 s). Default `6000`,
+  about one scare per hour.
+- **Duration**: how long the scare stays on screen, 1 ms to 10 s. Default
+  `1000 ms`.
 
-## Testing it instantly
+**Flash mode**
 
-### Test Mode
+- **Enable flash (epilepsy warning)**: replaces the image with flashing
+  colours (see the warning); enabling asks for confirmation. Default `off`.
 
-**Test Mode** is the toggle at the top of the plugin settings. It overrides the
-chance to 1 in 10 and fires one scare when you switch it on. Nothing is saved:
-your chance returns when you switch it off, and Test Mode is off again after a
-client restart.
+**Appearance**
 
-### The chat command
+- **Image**: `Default` (creepy face), `Happy` (sun) or `Custom`. Custom falls
+  back to Default if the file can't be loaded. Default `Default`.
+- **Custom image file**: file name of an image inside your
+  `.runelite/plugin-data/jumpscare` folder. Used when **Image** is `Custom`.
+  Default blank.
 
-Type either of:
+**Sound**
 
-```
-::stest
-::jumpscaretest
-```
+- **Play sound**: Default `on`.
+- **Sound**: `Default` (scream), `Happy` (jingle) or `Custom`. Custom falls
+  back to Default if the file can't be loaded. Default `Default`.
+- **Volume**: 0 to 100, independent of the in-game music and sound-effect
+  sliders. At 0 nothing plays. Default `50`.
+- **Custom sound file**: file name of a WAV inside your
+  `.runelite/plugin-data/jumpscare` folder. Used when **Sound** is `Custom`.
+  Default blank.
 
-They do the same thing. `::stest` is the short form; `::jumpscaretest` is
-there in case another plugin claims the short one.
+## Test command
 
-The command previews your configured **Image** and **Sound** sources. Two
-bundled sets ship with the plugin, and you can force either one for a test
-regardless of the settings:
+`::stest` or `::jumpscaretest` fires a scare with your configured image and
+sound, and prints a chat line showing which were used and why a custom file
+could not be loaded.
 
-- `::stest scary` (or `::stest s`) for the bundled creepy face and scream
-- `::stest happy` (or `::stest h`) for the bundled smiling sun and jingle
+- `::stest scary` (or `::stest s`): the bundled creepy face and scream.
+- `::stest happy` (or `::stest h`): the bundled smiling sun and jingle.
 
-This triggers a jumpscare immediately, regardless of the odds, so use it to
-preview your settings and custom image or sound. The plain form also prints a
-status line in chat showing which image and sound were used, including why a
-custom file could not be loaded (not found, unsupported format, ...).
+## Custom files
 
-## Configuration
+Both go in your `.runelite/plugin-data/jumpscare` folder, created when the
+plugin starts. They are re-checked on every scare, so a file added or
+replaced later is picked up by the next one.
 
-| Setting | Default | Notes |
-| --- | --- | --- |
-| Test Mode | off | Overrides chance to 1 in 10, fires one scare on enable, resets to off on restart. |
-| Chance (1 in N) | 6000 | 1-in-N roll per game tick. See odds above. |
-| Duration | 1000 ms | How long the scare stays on screen (max 10 s). |
-| Enable flash | off | In the **Flash mode** section; replaces the image with flashing colours (see warning). |
-| Image | Default | Default (creepy face) / Happy (sun) / Custom. Custom falls back to Default if the file can't be loaded. |
-| Sound | Default | Default (scream) / Happy (jingle) / Custom. Custom falls back to Default if the file can't be loaded. |
-| Play sound | on | Play the sound when the scare fires. |
-| Volume | 50 | 0-100. See volume behaviour below. |
-| Custom image file | (blank) | File name of an image inside your `.runelite/plugin-data/jumpscare` folder. Used when Image = Custom. |
-| Custom sound file | (blank) | File name of a **WAV** inside your `.runelite/plugin-data/jumpscare` folder. Used when Sound = Custom. |
+**Image**
 
-### Custom image
-
-Drop an image into your `.runelite/plugin-data/jumpscare` folder (created when the
-plugin starts), set **Image** to Custom and **Custom image file** to its file
-name, e.g. `myscare.png`. It is scaled to fill the whole game canvas. If the
-file can't be loaded, the plugin falls back to the default image. Image and
-sound are picked independently, so your own image with the happy jingle is
-fine.
-
-Supported formats: **PNG, JPG, GIF, BMP** (no WebP). **Animated GIFs play**,
-looping for the scare duration.
-
-To keep memory bounded:
-
-- Files over **4096 px** on either side are refused and the default image is
-  used instead.
+- PNG, JPG, GIF or BMP (no WebP), scaled to fill the game canvas. Animated
+  GIFs loop for the scare duration.
+- Files over 4096 px on either side are refused and the default image is
+  used.
 - Static images are downscaled to at most 2048 px on their longest side.
-- Animation frames are downscaled to at most 512 px on their longest side, and
-  long animations are truncated to the first 30 frames.
+- Animation frames are downscaled to at most 512 px on their longest side,
+  and animations are cut to the first 30 frames.
 
-### Custom sound (WAV only)
+**Sound**
 
-Drop a **WAV** file into your `.runelite/plugin-data/jumpscare` folder, set **Sound** to
-Custom and **Custom sound file** to its file name. Sound must be **WAV
-(PCM)**, since the client has no MP3/MP4 codec. Convert other formats to WAV
-first.
-
-If the custom WAV can't be loaded, the plugin falls back to the bundled
-scream.
-
-Custom files are re-checked on every scare (and every `::stest`), so adding
-a file late or replacing one under the same name is picked up by the next
-trigger without a plugin toggle.
-
-### Volume behaviour
-
-The scream plays through the client's own audio subsystem, **independent of
-the in-game music and sound-effect volume sliders**. Setting `Volume` to 0
-disables playback entirely.
+- WAV (PCM) only. Convert other formats to WAV first.
