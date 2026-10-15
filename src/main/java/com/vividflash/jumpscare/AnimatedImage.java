@@ -136,13 +136,17 @@ final class AnimatedImage
                 {
                     return null;
                 }
-                int frameCount = "gif".equalsIgnoreCase(reader.getFormatName())
-                    ? reader.getNumImages(true) : 1;
-                if (frameCount <= 1)
+                boolean gif = "gif".equalsIgnoreCase(reader.getFormatName());
+                int frameCount = gif ? reader.getNumImages(true) : 1;
+                // A GIF frame can be smaller than, or offset within, its logical
+                // screen, so even a single frame goes through the compositing
+                // path; only the size limit follows the frame count.
+                if (gif && frameCount >= 1)
                 {
-                    return of(downscale(reader.read(0), maxStaticDimension));
+                    return decodeGif(reader, frameCount,
+                        frameCount == 1 ? maxStaticDimension : maxAnimDimension);
                 }
-                return decodeGif(reader, frameCount, maxAnimDimension);
+                return of(downscale(reader.read(0), maxStaticDimension));
             }
             finally
             {
@@ -193,7 +197,7 @@ final class AnimatedImage
     }
 
     /**
-     * Composite a multi-frame GIF into standalone full frames. GIF frames are
+     * Composite a GIF into standalone full frames. GIF frames are
      * often partial diffs positioned inside a logical screen, so each frame is
      * drawn onto a persistent canvas and the canvas snapshotted, honouring the
      * frame's disposal method before the next one.

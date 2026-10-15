@@ -38,7 +38,7 @@ play OSRS.
 **Sound**
 
 - **Play sound**: Default `on`.
-- **Sound**: `Default` (scream), `Happy` (jingle) or `Custom`. Custom falls
+- **Sound**: `Default` (violin stab), `Happy` (jingle) or `Custom`. Custom falls
   back to Default if the file can't be loaded. Default `Default`.
 - **Volume**: 0 to 100, independent of the in-game music and sound-effect
   sliders. At 0 nothing plays. Default `50`.
@@ -52,7 +52,7 @@ play OSRS.
 sound, and prints a chat line showing which were used and why a custom file
 could not be loaded.
 
-- `::stest scary` (or `::stest s`): the bundled creepy face and scream.
+- `::stest scary` (or `::stest s`): the bundled creepy face and violin stab.
 - `::stest happy` (or `::stest h`): the bundled smiling sun and jingle.
 
 ## Custom files

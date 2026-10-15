@@ -78,9 +78,9 @@ public class JumpscarePlugin extends Plugin
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
     /** The release the one-time notice below belongs to, not the packaged version. */
-    private static final String VERSION = "1.7";
+    private static final String VERSION = "1.8";
     private static final String UPDATE_MESSAGE =
-        "Jumpscare v1.7: RuneLite now requires files to use .runelite/plugin-data/jumpscare instead, we have moved your files there from .runelite/jumpscare.";
+        "Jumpscare v1.8: Upgraded the Default Sound and Images.";
 
     /** Dark red for the one-time update notice, legible on either chatbox background. */
     private static final Color UPDATE_MESSAGE_COLOR = new Color(0x8B0000);
@@ -154,9 +154,11 @@ public class JumpscarePlugin extends Plugin
     private boolean updateChecked;
 
     /**
-     * When the current scare should stop being drawn. Null when no scare is active.
+     * System.nanoTime() at which the current scare stops being drawn; 0 when
+     * no scare has been armed. A primitive so the per-frame check allocates
+     * nothing.
      */
-    private volatile Instant scareEndTime;
+    private volatile long scareDeadlineNanos;
 
     /**
      * When the current scare started (used by FLASH mode to compute elapsed time).
@@ -233,9 +235,17 @@ public class JumpscarePlugin extends Plugin
     private final AtomicInteger imageLoadGen = new AtomicInteger();
     private final AtomicInteger soundLoadGen = new AtomicInteger();
 
+    /**
+     * True between startUp and shutDown. A refresh queued by a scare can run
+     * after shutDown and would take a load generation newer than its bump,
+     * so loads and refreshes also check this before doing work or publishing.
+     */
+    private volatile boolean running;
+
     @Override
     protected void startUp()
     {
+        running = true;
         updateChecked = false;
         try
         {
@@ -277,8 +287,9 @@ public class JumpscarePlugin extends Plugin
     @Override
     protected void shutDown()
     {
+        running = false;
         overlayManager.remove(overlay);
-        scareEndTime = null;
+        scareDeadlineNanos = 0;
         scareStartTime = null;
         activeImage = null;
         // Release all decoded frames so a disabled plugin pins no heap; the
@@ -488,7 +499,7 @@ public class JumpscarePlugin extends Plugin
                     log.warn("Failed to read custom image, the default will be used: {}", name, e);
                 }
             }
-            if (gen == imageLoadGen.get())
+            if (running && gen == imageLoadGen.get())
             {
                 customImage = loaded;
                 customImageStatus = status;
@@ -525,7 +536,16 @@ public class JumpscarePlugin extends Plugin
                         {
                             loaded = in.readAllBytes();
                         }
-                        status = "loaded";
+                        if (isPlayable(loaded))
+                        {
+                            status = "loaded";
+                        }
+                        else
+                        {
+                            loaded = null;
+                            status = "unsupported format";
+                            log.warn("Custom sound is not a playable format, the default scream will be used: {}", name);
+                        }
                     }
                     else
                     {
@@ -539,13 +559,63 @@ public class JumpscarePlugin extends Plugin
                     log.warn("Failed to read custom sound, the default scream will be used: {}", name, e);
                 }
             }
-            if (gen == soundLoadGen.get())
+            if (running && gen == soundLoadGen.get())
             {
                 customSoundBytes = loaded;
                 customSoundStatus = status;
                 customSoundStamp = stamp;
             }
         });
+    }
+
+    /**
+     * @return true when the bytes are a RIFF/WAVE whose fmt chunk names an
+     *         encoding the Java WAV readers decode (PCM, IEEE float, A-law,
+     *         mu-law or extensible) and that has a data chunk. Read from the
+     *         header, since the hub allows no audio API besides AudioPlayer.
+     */
+    private static boolean isPlayable(byte[] wav)
+    {
+        if (wav.length < 44
+            || wav[0] != 'R' || wav[1] != 'I' || wav[2] != 'F' || wav[3] != 'F'
+            || wav[8] != 'W' || wav[9] != 'A' || wav[10] != 'V' || wav[11] != 'E')
+        {
+            return false;
+        }
+
+        boolean knownFormat = false;
+        int pos = 12;
+        while (pos + 8 <= wav.length)
+        {
+            long size = (wav[pos + 4] & 0xFFL) | (wav[pos + 5] & 0xFFL) << 8
+                | (wav[pos + 6] & 0xFFL) << 16 | (wav[pos + 7] & 0xFFL) << 24;
+            if (size > wav.length - pos - 8)
+            {
+                return false;
+            }
+
+            if (wav[pos] == 'f' && wav[pos + 1] == 'm' && wav[pos + 2] == 't' && wav[pos + 3] == ' ')
+            {
+                if (size < 16)
+                {
+                    return false;
+                }
+                int audioFormat = (wav[pos + 8] & 0xFF) | (wav[pos + 9] & 0xFF) << 8;
+                knownFormat = audioFormat == 1 || audioFormat == 3 || audioFormat == 6
+                    || audioFormat == 7 || audioFormat == 0xFFFE;
+                if (!knownFormat)
+                {
+                    return false;
+                }
+            }
+            else if (wav[pos] == 'd' && wav[pos + 1] == 'a' && wav[pos + 2] == 't' && wav[pos + 3] == 'a')
+            {
+                return knownFormat;
+            }
+
+            pos += 8 + (int) size + (int) (size & 1);
+        }
+        return false;
     }
 
     /**
@@ -556,6 +626,10 @@ public class JumpscarePlugin extends Plugin
      */
     private void refreshCustomAssetsIfChanged()
     {
+        if (!running)
+        {
+            return;
+        }
         String imageName = trimmed(config.customImageFile());
         if (!imageName.isEmpty() && stampOf(imageName) != customImageStamp)
         {
@@ -765,7 +839,7 @@ public class JumpscarePlugin extends Plugin
                 ? JumpscareTheme.HAPPY : JumpscareTheme.SCARY);
         activeImage = resolveImage(forced);
         scareStartTime = Instant.now();
-        scareEndTime = scareStartTime.plusMillis(duration);
+        scareDeadlineNanos = System.nanoTime() + duration * 1_000_000L;
 
         if (config.soundEnabled())
         {
@@ -1012,8 +1086,8 @@ public class JumpscarePlugin extends Plugin
      */
     boolean isActive()
     {
-        Instant end = scareEndTime;
-        return end != null && Instant.now().isBefore(end);
+        long deadline = scareDeadlineNanos;
+        return deadline != 0 && System.nanoTime() - deadline < 0;
     }
 
     Instant getScareStartTime()
