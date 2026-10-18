@@ -168,16 +168,37 @@ public interface JumpscareConfig extends Config
         return true;
     }
 
+    enum SoundSource
+    {
+        DEFAULT("Alarm"),
+        STINGER("Stinger"),
+        HAPPY("Jingle"),
+        CUSTOM("Custom");
+
+        private final String label;
+
+        SoundSource(String label)
+        {
+            this.label = label;
+        }
+
+        @Override
+        public String toString()
+        {
+            return label;
+        }
+    }
+
     @ConfigItem(
         keyName = "soundSource",
         name = "Sound",
-        description = "Default is a horror violin stab, Happy a cheerful jingle. Custom falls back to Default if the file can't be loaded.",
+        description = "Custom falls back to Alarm if the file can't be loaded.",
         section = soundSection,
         position = 20
     )
-    default AssetSource soundSource()
+    default SoundSource soundSource()
     {
-        return AssetSource.DEFAULT;
+        return SoundSource.DEFAULT;
     }
 
     @ConfigItem(

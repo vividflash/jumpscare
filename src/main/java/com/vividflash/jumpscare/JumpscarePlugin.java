@@ -25,6 +25,7 @@
 package com.vividflash.jumpscare;
 
 import com.google.inject.Provides;
+import com.vividflash.jumpscare.JumpscareConfig.SoundSource;
 import java.awt.Color;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -78,9 +79,9 @@ public class JumpscarePlugin extends Plugin
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
     /** The release the one-time notice below belongs to, not the packaged version. */
-    private static final String VERSION = "1.8";
+    private static final String VERSION = "1.9";
     private static final String UPDATE_MESSAGE =
-        "Jumpscare v1.8: Upgraded the Default Sound and Images.";
+        "Jumpscare v1.9: Restored Old Default Sound, New One Is Now Named Stinger.";
 
     /** Dark red for the one-time update notice, legible on either chatbox background. */
     private static final Color UPDATE_MESSAGE_COLOR = new Color(0x8B0000);
@@ -196,7 +197,8 @@ public class JumpscarePlugin extends Plugin
      */
     private AnimatedImage bundledScary;
     private AnimatedImage bundledHappy;
-    private volatile byte[] bundledScreamBytes;
+    private volatile byte[] bundledAlarmBytes;
+    private volatile byte[] bundledStingerBytes;
     private volatile byte[] bundledHappyBytes;
 
     /**
@@ -258,7 +260,8 @@ public class JumpscarePlugin extends Plugin
         }
         bundledScary = loadBundledImage("scare.png");
         bundledHappy = loadBundledImage("happy.png");
-        bundledScreamBytes = loadBundledBytes("scream.wav");
+        bundledAlarmBytes = loadBundledBytes("alarm.wav");
+        bundledStingerBytes = loadBundledBytes("stinger.wav");
         bundledHappyBytes = loadBundledBytes("happy.wav");
         migrateOnce();
 
@@ -298,7 +301,8 @@ public class JumpscarePlugin extends Plugin
         soundLoadGen.incrementAndGet();
         bundledScary = null;
         bundledHappy = null;
-        bundledScreamBytes = null;
+        bundledAlarmBytes = null;
+        bundledStingerBytes = null;
         bundledHappyBytes = null;
         customImage = null;
         customSoundBytes = null;
@@ -544,19 +548,19 @@ public class JumpscarePlugin extends Plugin
                         {
                             loaded = null;
                             status = "unsupported format";
-                            log.warn("Custom sound is not a playable format, the default scream will be used: {}", name);
+                            log.warn("Custom sound is not a playable format, the default sound will be used: {}", name);
                         }
                     }
                     else
                     {
                         status = "file not found in " + pluginDir;
-                        log.warn("Custom sound file not found in {}, the default scream will be used: {}", pluginDir, name);
+                        log.warn("Custom sound file not found in {}, the default sound will be used: {}", pluginDir, name);
                     }
                 }
                 catch (IOException e)
                 {
                     status = "could not be read";
-                    log.warn("Failed to read custom sound, the default scream will be used: {}", name, e);
+                    log.warn("Failed to read custom sound, the default sound will be used: {}", name, e);
                 }
             }
             if (running && gen == soundLoadGen.get())
@@ -778,7 +782,9 @@ public class JumpscarePlugin extends Plugin
         {
             return "flash mode, the image is not drawn";
         }
-        return describeSource(config.imageSource(), config.customImageFile(), customImageStatus);
+        AssetSource source = config.imageSource();
+        return describeSource(source.toString(), source == AssetSource.CUSTOM,
+            config.customImageFile(), customImageStatus, "Default");
     }
 
     /**
@@ -795,19 +801,22 @@ public class JumpscarePlugin extends Plugin
         {
             return "muted (volume 0)";
         }
-        return describeSource(config.soundSource(), config.customSoundFile(), customSoundStatus);
+        SoundSource source = config.soundSource();
+        return describeSource(source.toString(), source == SoundSource.CUSTOM,
+            config.customSoundFile(), customSoundStatus, "Alarm");
     }
 
-    private static String describeSource(AssetSource source, String file, String status)
+    private static String describeSource(String label, boolean custom, String file, String status,
+        String fallback)
     {
-        if (source != AssetSource.CUSTOM)
+        if (!custom)
         {
-            return source.toString();
+            return label;
         }
         String name = trimmed(file);
         if (name.isEmpty())
         {
-            return "Custom, but no file name is set (using Default)";
+            return "Custom, but no file name is set (using " + fallback + ")";
         }
         if (status == null)
         {
@@ -817,7 +826,7 @@ public class JumpscarePlugin extends Plugin
         {
             return "Custom (" + name + ")";
         }
-        return "Custom (" + name + ": " + status + "), using Default";
+        return "Custom (" + name + ": " + status + "), using " + fallback;
     }
 
     /**
@@ -906,14 +915,14 @@ public class JumpscarePlugin extends Plugin
      */
     private byte[] screamBytes(JumpscareTheme forced)
     {
-        AssetSource source = forced == JumpscareTheme.HAPPY ? AssetSource.HAPPY
-            : forced == JumpscareTheme.SCARY ? AssetSource.DEFAULT
+        SoundSource source = forced == JumpscareTheme.HAPPY ? SoundSource.HAPPY
+            : forced == JumpscareTheme.SCARY ? SoundSource.DEFAULT
             : config.soundSource();
 
-        if (source == AssetSource.CUSTOM)
+        if (source == SoundSource.CUSTOM)
         {
             // Preloaded by reloadCustomSound(); null (unset/unloadable, already
-            // logged at load time) falls through to the bundled scream.
+            // logged at load time) falls through to the bundled alarm.
             byte[] custom = customSoundBytes;
             if (custom != null)
             {
@@ -921,7 +930,15 @@ public class JumpscarePlugin extends Plugin
             }
         }
 
-        return source == AssetSource.HAPPY ? bundledHappyBytes : bundledScreamBytes;
+        switch (source)
+        {
+            case HAPPY:
+                return bundledHappyBytes;
+            case STINGER:
+                return bundledStingerBytes;
+            default:
+                return bundledAlarmBytes;
+        }
     }
 
     /**

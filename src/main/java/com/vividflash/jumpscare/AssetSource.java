@@ -28,10 +28,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Where an asset (scare image or sound) comes from: the bundled default, the
- * bundled happy variant, or the user's custom file (which falls back to the
- * default when it can't be loaded). Image and sound are selected
- * independently.
+ * Where the scare image comes from: the bundled default, the bundled happy
+ * variant, or the user's custom file (which falls back to the default when it
+ * can't be loaded). The sound has its own {@link JumpscareConfig.SoundSource}.
  */
 @Getter
 @RequiredArgsConstructor
