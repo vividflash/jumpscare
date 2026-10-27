@@ -43,42 +43,31 @@ import net.runelite.client.util.Filepath;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 
-/**
- * An image with one or more frames. Static formats (PNG, JPG, BMP, ...) load as
- * a single frame; animated GIFs are composited into full frames with per-frame
- * delays so a renderer can pick the frame for any elapsed time. Decoding uses
- * only the JRE's ImageIO, with no third-party codecs.
- */
+// An image with one or more frames. Static formats (PNG, JPG, BMP, ...) load as a single frame;
+// animated GIFs are composited into full frames with per-frame delays so a renderer can pick the
+// frame for any elapsed time. Decoding uses only the JRE's ImageIO, with no third-party codecs.
 @Slf4j
 final class AnimatedImage
 {
-    /**
-     * Caps on what is kept after decoding: frames are uncompressed ARGB (4
-     * bytes per pixel), so a long high-res animation multiplies out quickly.
-     * Decoding stops at whichever cap is hit first and the animation loops
-     * over the frames kept.
-     */
+    // Caps on what is kept after decoding: frames are uncompressed ARGB (4 bytes per pixel), so a
+    // long high-res animation multiplies out quickly. Decoding stops at whichever cap is hit first
+    // and the animation loops over the frames kept.
     private static final int MAX_FRAMES = 30;
     private static final long MAX_TOTAL_BYTES = 32L * 1024 * 1024;
 
-    /**
-     * Cap on what is decoded in the first place, checked against the declared
-     * dimensions before any pixel buffer is allocated. A file (or a GIF
-     * logical screen) larger than this on either side is refused rather than
-     * decoded, which bounds the peak allocation at 4096 * 4096 * 4 bytes.
-     */
+    // Cap on what is decoded in the first place, checked against the declared dimensions before any
+    // pixel buffer is allocated. A file (or a GIF logical screen) larger than this on either side
+    // is refused rather than decoded, which bounds the peak allocation at 4096 * 4096 * 4 bytes.
     static final int MAX_SOURCE_DIMENSION = 4096;
 
-    /**
-     * GIFs commonly declare 0 delay; browsers render those at about 100 ms per
-     * frame, so match that rather than spinning through frames instantly.
-     * Declared delays below {@link #MIN_DELAY_MS} are raised to that floor.
-     */
+    // GIFs commonly declare 0 delay; browsers render those at about 100 ms per frame, so match that
+    // rather than spinning through frames instantly. Declared delays below MIN_DELAY_MS are raised
+    // to that floor.
     private static final int MIN_DELAY_MS = 20;
     private static final int DEFAULT_DELAY_MS = 100;
 
     private final BufferedImage[] frames;
-    /** Cumulative delay up to and including frame i, for elapsed-time lookup. */
+    // Cumulative delay up to and including frame i, for elapsed-time lookup.
     private final int[] frameEndTimesMs;
     private final int totalDurationMs;
 
@@ -102,22 +91,16 @@ final class AnimatedImage
         totalDurationMs = 0;
     }
 
-    /**
-     * Wrap an already-decoded static image as a single-frame animation.
-     */
+    // Wrap an already-decoded static image as a single-frame animation.
     static AnimatedImage of(BufferedImage image)
     {
         return image == null ? null : new AnimatedImage(image);
     }
 
-    /**
-     * Load an image file, decoding all frames if it is an animated GIF.
-     * Animated frames are downscaled to {@code maxAnimDimension} on their
-     * longest side, static images to {@code maxStaticDimension}; pass 0 to
-     * leave the respective size untouched. Returns null when no ImageIO
-     * reader recognises the file or when it is over {@link
-     * #MAX_SOURCE_DIMENSION}; the caller then keeps its bundled asset.
-     */
+    // Load an image file, decoding all frames if it is an animated GIF. Animated frames are
+    // downscaled to maxAnimDimension on their longest side, static images to maxStaticDimension;
+    // pass 0 to leave the respective size untouched. Returns null when no ImageIO reader recognises
+    // the file or when it is over MAX_SOURCE_DIMENSION; the caller then keeps its bundled asset.
     static AnimatedImage load(Filepath file, int maxAnimDimension, int maxStaticDimension) throws IOException
     {
         try (InputStream in = file.openInputStream();
@@ -155,11 +138,8 @@ final class AnimatedImage
         }
     }
 
-    /**
-     * @return true when a declared size is small enough to decode. Logs the
-     *         refusal at debug; an oversize file is a user mistake, not a
-     *         fault worth a warning in every session's log.
-     */
+    // Returns true when a declared size is small enough to decode. Logs the refusal at debug; an
+    // oversize file is a user mistake, not a fault worth a warning in every session's log.
     private static boolean withinSourceLimit(int width, int height)
     {
         if (width > 0 && height > 0 && width <= MAX_SOURCE_DIMENSION && height <= MAX_SOURCE_DIMENSION)
@@ -171,10 +151,8 @@ final class AnimatedImage
         return false;
     }
 
-    /**
-     * The frame to show {@code elapsedMs} after the animation started; the
-     * animation loops. Static images always return their only frame.
-     */
+    // The frame to show elapsedMs after the animation started; the animation loops. Static images
+    // always return their only frame.
     BufferedImage frameAt(long elapsedMs)
     {
         if (frames.length == 1 || totalDurationMs <= 0)
@@ -196,15 +174,12 @@ final class AnimatedImage
         return frames[frames.length - 1];
     }
 
-    /**
-     * Composite a GIF into standalone full frames. GIF frames are
-     * often partial diffs positioned inside a logical screen, so each frame is
-     * drawn onto a persistent canvas and the canvas snapshotted, honouring the
-     * frame's disposal method before the next one.
-     *
-     * @return the decoded animation, or null when the declared sizes are over
-     *         {@link #MAX_SOURCE_DIMENSION} or nothing decoded at all.
-     */
+    // Composite a GIF into standalone full frames. GIF frames are often partial diffs positioned
+    // inside a logical screen, so each frame is drawn onto a persistent canvas and the canvas
+    // snapshotted, honouring the frame's disposal method before the next one.
+    //
+    // Returns the decoded animation, or null when the declared sizes are over MAX_SOURCE_DIMENSION
+    // or nothing decoded at all.
     private static AnimatedImage decodeGif(ImageReader reader, int maxDimension)
         throws IOException
     {

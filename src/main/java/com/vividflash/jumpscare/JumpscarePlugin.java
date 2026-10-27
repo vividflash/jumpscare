@@ -66,23 +66,20 @@ import net.runelite.client.util.Filepath;
 )
 public class JumpscarePlugin extends Plugin
 {
-    /**
-     * All file I/O stays inside this plugin's data folder. Created on
-     * startup so users can drop their custom image or WAV into it. Null
-     * when it could not be set up.
-     */
+    // All file I/O stays inside this plugin's data folder. Created on startup so users can drop
+    // their custom image or WAV into it. Null when it could not be set up.
     private volatile Filepath pluginDir;
 
     private static final String CONFIG_GROUP = "jumpscare";
     private static final String FLASH_MODE_KEY = "flashMode";
     private static final String LAST_SEEN_VERSION_KEY = "lastSeenVersion";
 
-    /** The release the one-time notice below belongs to, not the packaged version. */
+    // The release the one-time notice below belongs to, not the packaged version.
     private static final String VERSION = "1.9";
     private static final String UPDATE_MESSAGE =
         "Jumpscare v1.9: Restored Old Default Sound, New One Is Now Named Stinger.";
 
-    /** Dark red for the one-time update notice, legible on either chatbox background. */
+    // Dark red for the one-time update notice, legible on either chatbox background.
     private static final Color UPDATE_MESSAGE_COLOR = new Color(0x8B0000);
     private static final String CUSTOM_IMAGE_KEY = "customImagePath";
     private static final String CUSTOM_SOUND_KEY = "customSoundPath";
@@ -90,10 +87,8 @@ public class JumpscarePlugin extends Plugin
     private static final String DURATION_KEY = "durationMs";
     private static final String TEST_MODE_KEY = "testMode";
 
-    /**
-     * Overrides the chance read at trigger time while Test Mode is on. Nothing
-     * is written to the profile, so no stash or restore is needed.
-     */
+    // Overrides the chance read at trigger time while Test Mode is on. Nothing is written to the
+    // profile, so no stash or restore is needed.
     private static final int TEST_MODE_CHANCE = 10;
 
     // Largest custom sound file read into memory. A 16-bit stereo 44.1 kHz WAV runs about 176 KB a
@@ -101,32 +96,23 @@ public class JumpscarePlugin extends Plugin
     // named by mistake cannot fill the heap.
     private static final long MAX_CUSTOM_SOUND_BYTES = 5L * 1024 * 1024;
 
-    /**
-     * Chance defaults shipped by earlier releases. RuneLite writes every
-     * config default into the profile at first load, so raising the default
-     * later never reaches an existing install; a value equal to one of these
-     * is indistinguishable from an inherited default and gets cleared once,
-     * anything else is a deliberate choice and left alone.
-     */
+    // Chance defaults shipped by earlier releases. RuneLite writes every config default into the
+    // profile at first load, so raising the default later never reaches an existing install; a
+    // value equal to one of these is indistinguishable from an inherited default and gets cleared
+    // once, anything else is a deliberate choice and left alone.
     private static final int[] STALE_CHANCE_DEFAULTS = {100_000, 10_000};
 
-    /**
-     * Hidden flag recording that the one-time migration ran, so it never
-     * overrides a choice the user makes later.
-     */
+    // Hidden flag recording that the one-time migration ran, so it never overrides a choice the
+    // user makes later.
     private static final String MIGRATION_KEY = "migratedV15";
 
-    /**
-     * Hard ceiling on the scare duration, enforced in code as well as via
-     * {@code @Range} so a stale out-of-range config value can never leave a
-     * full-screen overlay covering the client indefinitely.
-     */
+    // Hard ceiling on the scare duration, enforced in code as well as via @Range so a stale
+    // out-of-range config value can never leave a full-screen overlay covering the client
+    // indefinitely.
     private static final int MAX_DURATION_MS = 10_000;
 
-    /**
-     * Hidden flag (never shown in the config panel) recording that the user
-     * accepted the epilepsy warning once, so startup doesn't re-prompt.
-     */
+    // Hidden flag (never shown in the config panel) recording that the user accepted the epilepsy
+    // warning once, so startup doesn't re-prompt.
     private static final String FLASH_ACK_KEY = "flashWarningAcknowledged";
 
     private final Random random = new Random();
@@ -155,14 +141,11 @@ public class JumpscarePlugin extends Plugin
     @Inject
     private ChatMessageManager chatMessageManager;
 
-    /** One update check per session; reset on startUp. */
+    // One update check per session; reset on startUp.
     private boolean updateChecked;
 
-    /**
-     * System.nanoTime() at which the current scare stops being drawn; 0 when
-     * no scare has been armed. A primitive so the per-frame check allocates
-     * nothing.
-     */
+    // System.nanoTime() at which the current scare stops being drawn; 0 when no scare has been
+    // armed. A primitive so the per-frame check allocates nothing.
     private volatile long scareDeadlineNanos;
 
     // System.nanoTime() when the current scare started, for the overlay's elapsed time (flash
@@ -183,82 +166,58 @@ public class JumpscarePlugin extends Plugin
     // onGameTick reads no config. Written on startUp and ConfigChanged, read on the client thread.
     private volatile int rollDenominator = 1;
 
-    /**
-     * Animated custom images keep frames this large at most (longest side);
-     * the overlay upscales to the canvas, and uncompressed frames at full
-     * screen resolution would multiply the heap cost for little visible gain
-     * during a sub-second scare.
-     */
+    // Animated custom images keep frames this large at most (longest side); the overlay upscales to
+    // the canvas, and uncompressed frames at full screen resolution would multiply the heap cost
+    // for little visible gain during a sub-second scare.
     private static final int MAX_ANIMATED_DIMENSION = 512;
 
-    /**
-     * Static custom images keep more detail than animated ones, since only one
-     * frame is held, but still get a ceiling so a very large file cannot pin
-     * tens of megabytes for as long as the plugin runs.
-     */
+    // Static custom images keep more detail than animated ones, since only one frame is held, but
+    // still get a ceiling so a very large file cannot pin tens of megabytes for as long as the
+    // plugin runs.
     private static final int MAX_STATIC_DIMENSION = 2048;
 
-    /**
-     * The image the overlay should draw for the current scare (bundled or custom).
-     */
+    // The image the overlay should draw for the current scare (bundled or custom).
     private volatile AnimatedImage activeImage;
 
-    /**
-     * The theme of the currently active scare (drives flash colours).
-     */
+    // The theme of the currently active scare (drives flash colours).
     private volatile JumpscareTheme activeTheme = JumpscareTheme.SCARY;
 
-    /**
-     * The bundled default images and sounds, loaded once at start-up so no
-     * trigger has to go back to the jar for them.
-     */
+    // The bundled default images and sounds, loaded once at start-up so no trigger has to go back
+    // to the jar for them.
     private AnimatedImage bundledScary;
     private AnimatedImage bundledHappy;
     private volatile byte[] bundledAlarmBytes;
     private volatile byte[] bundledStingerBytes;
     private volatile byte[] bundledHappyBytes;
 
-    /**
-     * The configured custom image and sound, preloaded on the executor at
-     * startup and whenever their config keys change, so the trigger path never
-     * reads a file. Null when unset or unloadable, in which case the trigger
-     * falls back to the bundled assets.
-     */
+    // The configured custom image and sound, preloaded on the executor at startup and whenever
+    // their config keys change, so the trigger path never reads a file. Null when unset or
+    // unloadable, in which case the trigger falls back to the bundled assets.
     private volatile AnimatedImage customImage;
     private volatile byte[] customSoundBytes;
 
-    /**
-     * Human-readable outcome of the last custom image/sound load attempt
-     * ("loaded", "file not found in ...", ...), shown by plain ::stest so
-     * users can see why a custom file isn't used without digging through
-     * client.log. Null when no file name is configured (or none loaded yet).
-     */
+    // Human-readable outcome of the last custom image/sound load attempt ("loaded", "file not found
+    // in ...", ...), shown by plain ::stest so users can see why a custom file isn't used without
+    // digging through client.log. Null when no file name is configured (or none loaded yet).
     private volatile String customImageStatus;
     private volatile String customSoundStatus;
 
-    /**
-     * lastModified/length fingerprint of the custom file at its last load
-     * attempt (-1 when the file was missing). Each trigger re-stats the
-     * configured files on the executor and reloads on mismatch, so late
-     * file drops and same-name replacements heal by the next scare without
-     * a plugin toggle.
-     */
+    // lastModified/length fingerprint of the custom file at its last load attempt (-1 when the file
+    // was missing). Each trigger re-stats the configured files on the executor and reloads on
+    // mismatch, so late file drops and same-name replacements heal by the next scare without a
+    // plugin toggle.
     private volatile long customImageStamp;
     private volatile long customSoundStamp;
 
-    /**
-     * Load generations: each (re)load bumps its counter and only the newest
-     * load may publish its result, so a slow decode can't overwrite a newer
-     * config edit, and results arriving after shutDown are dropped.
-     */
+    // Load generations: each (re)load bumps its counter and only the newest load may publish its
+    // result, so a slow decode can't overwrite a newer config edit, and results arriving after
+    // shutDown are dropped.
     private final AtomicInteger imageLoadGen = new AtomicInteger();
     private final AtomicInteger soundLoadGen = new AtomicInteger();
 
-    /**
-     * True between startUp and shutDown. A refresh queued by a scare can run
-     * after shutDown and would take a load generation newer than its bump,
-     * so loads and refreshes also check this before doing work or publishing.
-     */
+    // True between startUp and shutDown. A refresh queued by a scare can run after shutDown and
+    // would take a load generation newer than its bump, so loads and refreshes also check this
+    // before doing work or publishing.
     private volatile boolean running;
 
     @Override
@@ -331,10 +290,8 @@ public class JumpscarePlugin extends Plugin
         customSoundStamp = 0;
     }
 
-    /**
-     * One-time repair of settings that earlier releases left in a state the
-     * user cannot have intended, gated so it never overrides a later choice.
-     */
+    // One-time repair of settings that earlier releases left in a state the user cannot have
+    // intended, gated so it never overrides a later choice.
     private void migrateOnce()
     {
         if (Boolean.parseBoolean(configManager.getConfiguration(CONFIG_GROUP, MIGRATION_KEY)))
@@ -346,10 +303,8 @@ public class JumpscarePlugin extends Plugin
         migrateOversizeDuration();
     }
 
-    /**
-     * Clamp a stored duration above the cap back in range. Trigger time
-     * already clamps, so this only aligns the panel value with it.
-     */
+    // Clamp a stored duration above the cap back in range. Trigger time already clamps, so this
+    // only aligns the panel value with it.
     private void migrateOversizeDuration()
     {
         if (config.durationMs() > MAX_DURATION_MS)
@@ -358,13 +313,10 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    /**
-     * Move a chance still on an old default onto today's default. Unsetting
-     * alone isn't enough: the config framework re-persists defaults at client
-     * start, before this runs, so an unset int would render as the panel's
-     * range minimum (1) for the rest of the session; unset to read today's
-     * default through the proxy, then write it back explicitly.
-     */
+    // Move a chance still on an old default onto today's default. Unsetting alone isn't enough: the
+    // config framework re-persists defaults at client start, before this runs, so an unset int
+    // would render as the panel's range minimum (1) for the rest of the session; unset to read
+    // today's default through the proxy, then write it back explicitly.
     private void migrateStaleChanceDefault()
     {
         int chance = config.chanceDenominator();
@@ -385,13 +337,10 @@ public class JumpscarePlugin extends Plugin
         return configManager.getConfig(JumpscareConfig.class);
     }
 
-    /**
-     * One-time post-update notice: on the first logged-in tick after the
-     * plugin version changes, summarise the update in chat. The version is
-     * recorded immediately, so it prints once after an update and not on
-     * later restarts or plugin toggles. Fresh installs (and updates from
-     * versions predating this notice) record the version silently.
-     */
+    // One-time post-update notice: on the first logged-in tick after the plugin version changes,
+    // summarise the update in chat. The version is recorded immediately, so it prints once after an
+    // update and not on later restarts or plugin toggles. Fresh installs (and updates from versions
+    // predating this notice) record the version silently.
     private void maybeAnnounceUpdate()
     {
         if (updateChecked)
@@ -419,12 +368,9 @@ public class JumpscarePlugin extends Plugin
             .build());
     }
 
-    /**
-     * Confirm enabling flash mode with an epilepsy warning, reverting the
-     * toggle if declined. Done here rather than via the ConfigItem warning
-     * attribute, which fires on every change: disabling flash again must not
-     * prompt.
-     */
+    // Confirm enabling flash mode with an epilepsy warning, reverting the toggle if declined. Done
+    // here rather than via the ConfigItem warning attribute, which fires on every change: disabling
+    // flash again must not prompt.
     @Subscribe
     public void onConfigChanged(ConfigChanged event)
     {
@@ -471,11 +417,9 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    /**
-     * Hand work to the shared client executor. Rejection only happens while
-     * the client is shutting down, at which point dropping the task is the
-     * right outcome and must not surface as an exception to the caller.
-     */
+    // Hand work to the shared client executor. Rejection only happens while the client is shutting
+    // down, at which point dropping the task is the right outcome and must not surface as an
+    // exception to the caller.
     private void submit(Runnable task)
     {
         try
@@ -488,11 +432,8 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    /**
-     * (Re)load the configured custom image on the executor, publishing into
-     * {@link #customImage}. Runs off the client thread so neither game ticks
-     * nor config edits ever wait on disk or GIF decoding.
-     */
+    // (Re)load the configured custom image on the executor, publishing into customImage. Runs off
+    // the client thread so neither game ticks nor config edits ever wait on disk or GIF decoding.
     private void reloadCustomImage()
     {
         int gen = imageLoadGen.incrementAndGet();
@@ -544,12 +485,9 @@ public class JumpscarePlugin extends Plugin
         });
     }
 
-    /**
-     * (Re)load the configured custom WAV's raw bytes on the executor,
-     * publishing into {@link #customSoundBytes}. Raw rather than
-     * volume-scaled so the cache survives volume changes; scaling happens
-     * in memory per trigger.
-     */
+    // (Re)load the configured custom WAV's raw bytes on the executor, publishing into
+    // customSoundBytes. Raw rather than volume-scaled so the cache survives volume changes; scaling
+    // happens in memory per trigger.
     private void reloadCustomSound()
     {
         int gen = soundLoadGen.incrementAndGet();
@@ -614,12 +552,9 @@ public class JumpscarePlugin extends Plugin
         });
     }
 
-    /**
-     * @return true when the bytes are a RIFF/WAVE whose fmt chunk names an
-     *         encoding the Java WAV readers decode (PCM, IEEE float, A-law,
-     *         mu-law or extensible) and that has a data chunk. Read from the
-     *         header, since the hub allows no audio API besides AudioPlayer.
-     */
+    // Returns true when the bytes are a RIFF/WAVE whose fmt chunk names an encoding the Java WAV
+    // readers decode (PCM, IEEE float, A-law, mu-law or extensible) and that has a data chunk. Read
+    // from the header, since the hub allows no audio API besides AudioPlayer.
     private static boolean isPlayable(byte[] wav)
     {
         if (wav.length < 44
@@ -664,12 +599,9 @@ public class JumpscarePlugin extends Plugin
         return false;
     }
 
-    /**
-     * Re-stat the configured custom files and reload any whose file changed
-     * (or appeared) since the last load attempt. Runs on the executor per
-     * trigger, keeping file access off the trigger path, and an unchanged
-     * broken file is not re-decoded every scare.
-     */
+    // Re-stat the configured custom files and reload any whose file changed (or appeared) since the
+    // last load attempt. Runs on the executor per trigger, keeping file access off the trigger
+    // path, and an unchanged broken file is not re-decoded every scare.
     private void refreshCustomAssetsIfChanged()
     {
         if (!running)
@@ -688,11 +620,9 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    /**
-     * lastModified/length fingerprint of a plugin-folder file; -1 when it
-     * is missing. Collisions only delay a reload until the next config
-     * change or plugin toggle, so mixing the two values is good enough.
-     */
+    // lastModified/length fingerprint of a plugin-folder file; -1 when it is missing. Collisions
+    // only delay a reload until the next config change or plugin toggle, so mixing the two values
+    // is good enough.
     private long stampOf(String name)
     {
         Filepath file = resolvePluginFile(name);
@@ -715,10 +645,8 @@ public class JumpscarePlugin extends Plugin
         return value == null ? "" : value.trim();
     }
 
-    /**
-     * Show the epilepsy warning: accepting records the acknowledgement,
-     * declining switches flash mode back off.
-     */
+    // Show the epilepsy warning: accepting records the acknowledgement, declining switches flash
+    // mode back off.
     private void confirmFlashMode()
     {
         // An earlier acceptance is still stored, so this flag is what keeps a
@@ -811,11 +739,9 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    /**
-     * Chat summary of what plain ::stest just used, so users can see why a
-     * custom file isn't playing without reading client.log. Only for the
-     * plain form, since the forced variants always use the bundled sets.
-     */
+    // Chat summary of what plain ::stest just used, so users can see why a custom file isn't
+    // playing without reading client.log. Only for the plain form, since the forced variants always
+    // use the bundled sets.
     private void reportTestStatus()
     {
         chatMessageManager.queue(QueuedMessage.builder()
@@ -842,10 +768,8 @@ public class JumpscarePlugin extends Plugin
             config.customImageFile(), customImageStatus, "Default");
     }
 
-    /**
-     * Describes the sound the way the trigger path resolves it, so the line
-     * never contradicts what was just heard.
-     */
+    // Describes the sound the way the trigger path resolves it, so the line never contradicts what
+    // was just heard.
     private String describeSoundState()
     {
         if (!config.soundEnabled())
@@ -884,16 +808,13 @@ public class JumpscarePlugin extends Plugin
         return "Custom (" + name + ": " + status + "), using " + fallback;
     }
 
-    /**
-     * Fire a jumpscare now: resolve the image to show, arm the timing window, and
-     * play the sound. Called from the client thread by the tick and command
-     * handlers, and from the Swing thread when Test Mode is switched on, so it
-     * only publishes fields and hands the slow work to the executor. It does
-     * not throw.
-     *
-     * @param forced force the full bundled scary/happy set (::stest args);
-     *               null uses the configured image and sound sources.
-     */
+    // Fire a jumpscare now: resolve the image to show, arm the timing window, and play the sound.
+    // Called from the client thread by the tick and command handlers, and from the Swing thread
+    // when Test Mode is switched on, so it only publishes fields and hands the slow work to the
+    // executor. It does not throw.
+    //
+    // A non-null forced picks the full bundled scary or happy set (::stest args); null uses the
+    // configured image and sound sources.
     void triggerJumpscare(JumpscareTheme forced)
     {
         submit(this::refreshCustomAssetsIfChanged);
@@ -965,11 +886,9 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    /**
-     * The WAV bytes for this trigger, read from the caches filled at startup
-     * and by {@link #reloadCustomSound()}. Null only when the bundled resource
-     * was missing at startup, which is already logged.
-     */
+    // The WAV bytes for this trigger, read from the caches filled at startup and by
+    // reloadCustomSound(). Null only when the bundled resource was missing at startup, which is
+    // already logged.
     private byte[] screamBytes(JumpscareTheme forced)
     {
         SoundSource source = forced == JumpscareTheme.HAPPY ? SoundSource.HAPPY
@@ -998,11 +917,9 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    /**
-     * Multiply every sample of a 16-bit PCM RIFF/WAVE by {@code amplitude}, returning
-     * a scaled copy with the original headers intact. Returns null when the bytes are
-     * not a WAV flavour this parser understands (caller falls back to mixer gain).
-     */
+    // Multiply every sample of a 16-bit PCM RIFF/WAVE by amplitude, returning a scaled copy with
+    // the original headers intact. Returns null when the bytes are not a WAV flavour this parser
+    // understands (caller falls back to mixer gain).
     private static byte[] scaleWavPcm16(byte[] wav, float amplitude)
     {
         if (amplitude >= 0.999f)
@@ -1069,11 +986,9 @@ public class JumpscarePlugin extends Plugin
         return null;
     }
 
-    /**
-     * Resolve which image to draw for this trigger from the configured source
-     * (or the forced bundled set for ::stest args). Custom falls back to
-     * the default image when it was missing or unreadable at preload time.
-     */
+    // Resolve which image to draw for this trigger from the configured source (or the forced
+    // bundled set for ::stest args). Custom falls back to the default image when it was missing or
+    // unreadable at preload time.
     private AnimatedImage resolveImage(JumpscareTheme forced)
     {
         AssetSource source = forced == JumpscareTheme.HAPPY ? AssetSource.HAPPY
@@ -1097,11 +1012,8 @@ public class JumpscarePlugin extends Plugin
         return bundledScary;
     }
 
-    /**
-     * Resolve a configured file name inside the plugin's data folder.
-     * Only files within that folder are ever read; a name that escapes it
-     * (e.g. via "..") resolves to null.
-     */
+    // Resolve a configured file name inside the plugin's data folder. Only files within that folder
+    // are ever read; a name that escapes it (e.g. via "..") resolves to null.
     private Filepath resolvePluginFile(String name)
     {
         Filepath dir = pluginDir;
@@ -1155,9 +1067,7 @@ public class JumpscarePlugin extends Plugin
         }
     }
 
-    /**
-     * @return true if a scare is currently within its display window.
-     */
+    // Returns true if a scare is currently within its display window.
     boolean isActive()
     {
         long deadline = scareDeadlineNanos;

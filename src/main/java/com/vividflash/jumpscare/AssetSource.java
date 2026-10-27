@@ -27,11 +27,9 @@ package com.vividflash.jumpscare;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Where the scare image comes from: the bundled default, the bundled happy
- * variant, or the user's custom file (which falls back to the default when it
- * can't be loaded). The sound has its own {@link JumpscareConfig.SoundSource}.
- */
+// Where the scare image comes from: the bundled default, the bundled happy variant, or the user's
+// custom file (which falls back to the default when it can't be loaded). The sound has its own
+// JumpscareConfig.SoundSource.
 @Getter
 @RequiredArgsConstructor
 public enum AssetSource
