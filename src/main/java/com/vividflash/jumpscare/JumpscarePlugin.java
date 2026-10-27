@@ -30,7 +30,6 @@ import java.awt.Color;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
 import java.util.Random;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -60,7 +59,7 @@ import net.runelite.client.util.Filepath;
 @Slf4j
 @PluginDescriptor(
     name = "Jumpscare",
-    description = "Rare full-screen image and scream sound",
+    description = "Rare Full-Screen Image and Scream Sound",
     tags = {"jumpscare", "scare", "prank", "fun"},
     internalName = "jumpscare",
     legacyDataDirectory = "jumpscare"
@@ -96,6 +95,11 @@ public class JumpscarePlugin extends Plugin
      * is written to the profile, so no stash or restore is needed.
      */
     private static final int TEST_MODE_CHANCE = 10;
+
+    // Largest custom sound file read into memory. A 16-bit stereo 44.1 kHz WAV runs about 176 KB a
+    // second, so this allows roughly 30 seconds, far past the longest scare, while a large file
+    // named by mistake cannot fill the heap.
+    private static final long MAX_CUSTOM_SOUND_BYTES = 5L * 1024 * 1024;
 
     /**
      * Chance defaults shipped by earlier releases. RuneLite writes every
@@ -161,10 +165,23 @@ public class JumpscarePlugin extends Plugin
      */
     private volatile long scareDeadlineNanos;
 
-    /**
-     * When the current scare started (used by FLASH mode to compute elapsed time).
-     */
-    private volatile Instant scareStartTime;
+    // System.nanoTime() when the current scare started, for the overlay's elapsed time (flash
+    // colour, GIF frame). A primitive from the monotonic clock, so a scare frame allocates nothing
+    // and a wall-clock step cannot shift the animation.
+    private volatile long scareStartNanos;
+
+    // Whether the current scare draws flash colours instead of the image, fixed when the scare
+    // fires. Flash mode only counts once the epilepsy warning was accepted: switching it on stores
+    // the setting at once while the warning opens later on the Swing thread, so a scare in between
+    // must not flash.
+    private volatile boolean activeFlash;
+
+    // True from showing the epilepsy warning until it is answered.
+    private volatile boolean flashWarningPending;
+
+    // The tick roll's denominator (Test Mode's fixed chance, or the configured chance), cached so
+    // onGameTick reads no config. Written on startUp and ConfigChanged, read on the client thread.
+    private volatile int rollDenominator = 1;
 
     /**
      * Animated custom images keep frames this large at most (longest side);
@@ -272,6 +289,7 @@ public class JumpscarePlugin extends Plugin
         {
             configManager.setConfiguration(CONFIG_GROUP, TEST_MODE_KEY, false);
         }
+        updateRollDenominator();
 
         reloadCustomImage();
         reloadCustomSound();
@@ -293,7 +311,8 @@ public class JumpscarePlugin extends Plugin
         running = false;
         overlayManager.remove(overlay);
         scareDeadlineNanos = 0;
-        scareStartTime = null;
+        scareStartNanos = 0;
+        activeFlash = false;
         activeImage = null;
         // Release all decoded frames so a disabled plugin pins no heap; the
         // generation bumps also invalidate any load still in flight.
@@ -426,18 +445,28 @@ public class JumpscarePlugin extends Plugin
         {
             reloadCustomSound();
         }
+        else if (CHANCE_KEY.equals(event.getKey()))
+        {
+            updateRollDenominator();
+        }
         else if (TEST_MODE_KEY.equals(event.getKey()))
         {
-            // Re-check both custom files on either edge. The reloads run on the
-            // executor, so a file swapped just now lands from the next scare on,
-            // not on the one this enable fires.
-            reloadCustomImage();
-            reloadCustomSound();
+            updateRollDenominator();
+            // Re-check both custom files on either edge, reloading only those
+            // that changed on disk. A forced full reload would queue its decodes
+            // on the single executor ahead of the scream and make it play late.
+            // A scare fired here runs the same check itself, ahead of its sound,
+            // so a file swapped just now lands from the next scare on, not on
+            // the one this enable fires.
             if (Boolean.parseBoolean(event.getNewValue())
                 && client.getGameState() == GameState.LOGGED_IN
                 && !isActive())
             {
                 triggerJumpscare(null);
+            }
+            else
+            {
+                submit(this::refreshCustomAssetsIfChanged);
             }
         }
     }
@@ -499,6 +528,9 @@ public class JumpscarePlugin extends Plugin
                 }
                 catch (IOException e)
                 {
+                    // Not loaded: clear the stamp so the next scare's refresh
+                    // retries instead of treating the file as handled.
+                    stamp = 0;
                     status = "could not be read";
                     log.warn("Failed to read custom image, the default will be used: {}", name, e);
                 }
@@ -534,7 +566,14 @@ public class JumpscarePlugin extends Plugin
                 try
                 {
                     Filepath soundFile = resolvePluginFile(name);
-                    if (soundFile != null && soundFile.isFile())
+                    if (soundFile != null && soundFile.isFile()
+                        && soundFile.size() > MAX_CUSTOM_SOUND_BYTES)
+                    {
+                        status = "over " + MAX_CUSTOM_SOUND_BYTES / (1024 * 1024) + " MB";
+                        log.warn("Custom sound is over {} MB, the default sound will be used: {}",
+                            MAX_CUSTOM_SOUND_BYTES / (1024 * 1024), name);
+                    }
+                    else if (soundFile != null && soundFile.isFile())
                     {
                         try (InputStream in = soundFile.openInputStream())
                         {
@@ -559,6 +598,9 @@ public class JumpscarePlugin extends Plugin
                 }
                 catch (IOException e)
                 {
+                    // Not loaded: clear the stamp so the next scare's refresh
+                    // retries instead of treating the file as handled.
+                    stamp = 0;
                     status = "could not be read";
                     log.warn("Failed to read custom sound, the default sound will be used: {}", name, e);
                 }
@@ -679,6 +721,9 @@ public class JumpscarePlugin extends Plugin
      */
     private void confirmFlashMode()
     {
+        // An earlier acceptance is still stored, so this flag is what keeps a
+        // scare from flashing while the warning is open again.
+        flashWarningPending = true;
         SwingUtilities.invokeLater(() ->
         {
             // Parented to the client canvas so the dialog opens on the client
@@ -697,7 +742,17 @@ public class JumpscarePlugin extends Plugin
             {
                 configManager.setConfiguration(CONFIG_GROUP, FLASH_MODE_KEY, false);
             }
+            flashWarningPending = false;
         });
+    }
+
+    // Recompute the cached tick roll denominator, with the rule the tick applied when it read
+    // config itself.
+    private void updateRollDenominator()
+    {
+        rollDenominator = config.testMode()
+            ? TEST_MODE_CHANCE
+            : Math.max(1, config.chanceDenominator());
     }
 
     @Subscribe
@@ -716,9 +771,7 @@ public class JumpscarePlugin extends Plugin
             return;
         }
 
-        int denominator = config.testMode()
-            ? TEST_MODE_CHANCE
-            : Math.max(1, config.chanceDenominator());
+        int denominator = rollDenominator;
         if (random.nextInt(denominator) == 0)
         {
             triggerJumpscare(null);
@@ -778,7 +831,9 @@ public class JumpscarePlugin extends Plugin
 
     private String describeImageState()
     {
-        if (config.flashMode())
+        // The flag the scare just fired with, so flash mode still waiting on
+        // the epilepsy warning is not reported as drawn.
+        if (activeFlash)
         {
             return "flash mode, the image is not drawn";
         }
@@ -847,7 +902,9 @@ public class JumpscarePlugin extends Plugin
             : (config.imageSource() == AssetSource.HAPPY
                 ? JumpscareTheme.HAPPY : JumpscareTheme.SCARY);
         activeImage = resolveImage(forced);
-        scareStartTime = Instant.now();
+        activeFlash = config.flashMode() && !flashWarningPending && Boolean.parseBoolean(
+            configManager.getConfiguration(CONFIG_GROUP, FLASH_ACK_KEY));
+        scareStartNanos = System.nanoTime();
         scareDeadlineNanos = System.nanoTime() + duration * 1_000_000L;
 
         if (config.soundEnabled())
@@ -1107,9 +1164,14 @@ public class JumpscarePlugin extends Plugin
         return deadline != 0 && System.nanoTime() - deadline < 0;
     }
 
-    Instant getScareStartTime()
+    long getScareStartNanos()
     {
-        return scareStartTime;
+        return scareStartNanos;
+    }
+
+    boolean isFlashActive()
+    {
+        return activeFlash;
     }
 
     AnimatedImage getActiveImage()

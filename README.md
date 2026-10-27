@@ -73,4 +73,4 @@ replaced later is picked up by the next one.
 
 **Sound**
 
-- WAV (PCM) only. Convert other formats to WAV first.
+- WAV (PCM) only. Convert other formats to WAV first (5 MB max).

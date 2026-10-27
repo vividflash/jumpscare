@@ -24,11 +24,10 @@
  */
 package com.vividflash.jumpscare;
 
+import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.time.Duration;
-import java.time.Instant;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
@@ -46,17 +45,15 @@ public class JumpscareOverlay extends Overlay
 
     private final Client client;
     private final JumpscarePlugin plugin;
-    private final JumpscareConfig config;
 
     /** Reused across frames; the renderer only reads the size out of it. */
     private final Dimension size = new Dimension();
 
     @Inject
-    JumpscareOverlay(Client client, JumpscarePlugin plugin, JumpscareConfig config)
+    JumpscareOverlay(Client client, JumpscarePlugin plugin)
     {
         this.client = client;
         this.plugin = plugin;
-        this.config = config;
         setLayer(OverlayLayer.ALWAYS_ON_TOP);
         setPosition(OverlayPosition.DYNAMIC);
         setPriority(Overlay.PRIORITY_HIGH);
@@ -70,30 +67,41 @@ public class JumpscareOverlay extends Overlay
             return null;
         }
 
-        if (client.getCanvas() == null)
+        Canvas canvas = client.getCanvas();
+        if (canvas == null)
         {
             return null;
         }
 
         // In stretched mode overlays draw on the pre-stretch surface, whose size
-        // is the real client dimensions, not the stretched canvas size.
-        Dimension canvas = client.isStretchedEnabled()
-            ? client.getRealDimensions()
-            : client.getCanvas().getSize();
-        int width = canvas.width;
-        int height = canvas.height;
+        // is the real client dimensions, not the stretched canvas size. The
+        // canvas getters avoid the Dimension that getSize() allocates per frame.
+        int width;
+        int height;
+        if (client.isStretchedEnabled())
+        {
+            Dimension real = client.getRealDimensions();
+            width = real.width;
+            height = real.height;
+        }
+        else
+        {
+            width = canvas.getWidth();
+            height = canvas.getHeight();
+        }
         if (width <= 0 || height <= 0)
         {
             return null;
         }
 
-        // Clamped at zero: a wall-clock step backwards between the trigger and
-        // this frame would otherwise make every elapsed-time index negative.
-        Instant start = plugin.getScareStartTime();
-        long elapsed = start == null ? 0L
-            : Math.max(0L, Duration.between(start, Instant.now()).toMillis());
+        // Monotonic clock, so no allocation per frame and no wall-clock step.
+        // Still clamped at zero: a scare fired from the Swing thread can move
+        // the start past the time read here, and a negative elapsed time would
+        // make every index negative.
+        long elapsed = Math.max(0L,
+            (System.nanoTime() - plugin.getScareStartNanos()) / 1_000_000L);
 
-        if (config.flashMode())
+        if (plugin.isFlashActive())
         {
             renderFlash(graphics, width, height, elapsed);
         }

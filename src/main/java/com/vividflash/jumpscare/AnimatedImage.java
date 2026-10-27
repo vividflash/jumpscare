@@ -136,15 +136,15 @@ final class AnimatedImage
                 {
                     return null;
                 }
-                boolean gif = "gif".equalsIgnoreCase(reader.getFormatName());
-                int frameCount = gif ? reader.getNumImages(true) : 1;
                 // A GIF frame can be smaller than, or offset within, its logical
                 // screen, so even a single frame goes through the compositing
-                // path; only the size limit follows the frame count.
-                if (gif && frameCount >= 1)
+                // path; only the size limit follows whether there is a second
+                // frame. Asking for it reads only as far as it, where counting
+                // every frame would scan the whole file.
+                if ("gif".equalsIgnoreCase(reader.getFormatName()))
                 {
-                    return decodeGif(reader, frameCount,
-                        frameCount == 1 ? maxStaticDimension : maxAnimDimension);
+                    return decodeGif(reader,
+                        hasImage(reader, 1) ? maxAnimDimension : maxStaticDimension);
                 }
                 return of(downscale(reader.read(0), maxStaticDimension));
             }
@@ -205,7 +205,7 @@ final class AnimatedImage
      * @return the decoded animation, or null when the declared sizes are over
      *         {@link #MAX_SOURCE_DIMENSION} or nothing decoded at all.
      */
-    private static AnimatedImage decodeGif(ImageReader reader, int frameCount, int maxDimension)
+    private static AnimatedImage decodeGif(ImageReader reader, int maxDimension)
         throws IOException
     {
         int canvasWidth = 0;
@@ -233,12 +233,25 @@ final class AnimatedImage
 
         BufferedImage canvas = new BufferedImage(canvasWidth, canvasHeight,
             BufferedImage.TYPE_INT_ARGB);
+        // Every snapshot is the whole canvas at one size, so each costs the
+        // same and the byte cap can be checked before a frame is decoded.
+        int longest = Math.max(canvasWidth, canvasHeight);
+        int snapshotWidth = scaled(canvasWidth, longest, maxDimension);
+        int snapshotHeight = scaled(canvasHeight, longest, maxDimension);
+        long snapshotBytes = (long) snapshotWidth * snapshotHeight * 4;
         List<BufferedImage> frames = new ArrayList<>();
         List<Integer> delays = new ArrayList<>();
         long totalBytes = 0;
 
-        for (int i = 0; i < frameCount; i++)
+        for (int i = 0; hasImage(reader, i); i++)
         {
+            if (frames.size() >= MAX_FRAMES
+                || (!frames.isEmpty() && totalBytes + snapshotBytes > MAX_TOTAL_BYTES))
+            {
+                log.warn("Animated GIF truncated to {} frames to bound memory use", frames.size());
+                break;
+            }
+
             // Individual frames carry their own declared size, so each one is
             // checked before it is decoded rather than trusting the screen.
             if (!withinSourceLimit(reader.getWidth(i), reader.getHeight(i)))
@@ -268,20 +281,9 @@ final class AnimatedImage
             g.drawImage(frame, x, y, null);
             g.dispose();
 
-            BufferedImage snapshot = snapshot(canvas, maxDimension);
-            totalBytes += (long) snapshot.getWidth() * snapshot.getHeight() * 4;
-            frames.add(snapshot);
+            frames.add(snapshot(canvas, snapshotWidth, snapshotHeight));
+            totalBytes += snapshotBytes;
             delays.add(delayMs);
-
-            if (frames.size() >= MAX_FRAMES || totalBytes > MAX_TOTAL_BYTES)
-            {
-                if (i + 1 < frameCount)
-                {
-                    log.warn("Animated GIF truncated to {} of {} frames to bound memory use",
-                        frames.size(), frameCount);
-                }
-                break;
-            }
 
             if ("restoreToBackgroundColor".equals(disposal))
             {
@@ -299,21 +301,28 @@ final class AnimatedImage
         return frames.isEmpty() ? null : new AnimatedImage(frames, delays);
     }
 
-    /**
-     * An independent copy of the canvas, downscaled to {@code maxDimension}
-     * on its longest side (0 = keep size). Always allocates so later canvas
-     * mutations cannot bleed into stored frames.
-     */
-    private static BufferedImage snapshot(BufferedImage canvas, int maxDimension)
+    // Whether the image has a frame at index. The reader reads only as far as that frame to answer.
+    private static boolean hasImage(ImageReader reader, int index) throws IOException
     {
-        int longest = Math.max(canvas.getWidth(), canvas.getHeight());
-        if (maxDimension <= 0 || longest <= maxDimension)
+        try
+        {
+            reader.getWidth(index);
+            return true;
+        }
+        catch (IndexOutOfBoundsException e)
+        {
+            return false;
+        }
+    }
+
+    // An independent copy of the canvas at w by h, scaled when that differs from the canvas size.
+    // Always allocates so later canvas mutations cannot bleed into stored frames.
+    private static BufferedImage snapshot(BufferedImage canvas, int w, int h)
+    {
+        if (w == canvas.getWidth() && h == canvas.getHeight())
         {
             return copy(canvas);
         }
-        double scale = (double) maxDimension / longest;
-        int w = Math.max(1, (int) Math.round(canvas.getWidth() * scale));
-        int h = Math.max(1, (int) Math.round(canvas.getHeight() * scale));
         BufferedImage scaled = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = scaled.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
@@ -334,7 +343,18 @@ final class AnimatedImage
         {
             return image;
         }
-        return snapshot(image, maxDimension);
+        return snapshot(image, scaled(image.getWidth(), longest, maxDimension),
+            scaled(image.getHeight(), longest, maxDimension));
+    }
+
+    // Scales length so longest becomes maxDimension, unchanged when it already fits (0 = keep size).
+    private static int scaled(int length, int longest, int maxDimension)
+    {
+        if (maxDimension <= 0 || longest <= maxDimension)
+        {
+            return length;
+        }
+        return Math.max(1, (int) Math.round(length * ((double) maxDimension / longest)));
     }
 
     private static BufferedImage copy(BufferedImage source)
