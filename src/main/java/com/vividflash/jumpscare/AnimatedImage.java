@@ -139,8 +139,8 @@ final class AnimatedImage
                 // A GIF frame can be smaller than, or offset within, its logical
                 // screen, so even a single frame goes through the compositing
                 // path; only the size limit follows whether there is a second
-                // frame. Asking for it reads only as far as it, where counting
-                // every frame would scan the whole file.
+                // frame. Checking for it reads only that far; counting every
+                // frame would scan the whole file.
                 if ("gif".equalsIgnoreCase(reader.getFormatName()))
                 {
                     return decodeGif(reader,
