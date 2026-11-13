@@ -3,9 +3,8 @@ plugins {
 }
 
 group = 'com.vividflash'
-version = '1.9.1'
 
-def runeLiteVersion = '1.13.1'
+def runeLiteVersion = 'latest.release'
 
 repositories {
     maven {
@@ -34,3 +33,5 @@ tasks.withType(JavaCompile) {
 test {
     useJUnit()
 }
+
+if (file('dev.gradle').exists()) { apply from: 'dev.gradle' }

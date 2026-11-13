@@ -4,9 +4,3 @@ out/
 .idea/
 *.iml
 *.log
-
-# Internal dev notes, not for publication
-RELEASE-TODO.md
-
-# Local dev launcher, kept out of the published tree
-src/test/

@@ -46,7 +46,7 @@ public class JumpscareOverlay extends Overlay
     private final Client client;
     private final JumpscarePlugin plugin;
 
-    /** Reused across frames; the renderer only reads the size out of it. */
+    // Reused across frames; the renderer only reads the size out of it.
     private final Dimension size = new Dimension();
 
     @Inject
